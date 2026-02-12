@@ -17,6 +17,10 @@ func main() {
 	http.HandleFunc("/api/post_stats", handler.PostStatsHandler)
 	http.HandleFunc("/api/pipelines", handler.PipelinesHandler)
 	http.HandleFunc("/api/regions", handler.RegionsHandler)
+	http.HandleFunc("/api/gpu/metrics", handler.GPUMetricsHandler)
+	http.HandleFunc("/api/network/demand", handler.NetworkDemandHandler)
+	http.HandleFunc("/api/sla/compliance", handler.SLAComplianceHandler)
+	http.HandleFunc("/api/datasets", handler.DatasetsHandler)
 
 	common.Logger.Info("Server starting on port 8080")
 

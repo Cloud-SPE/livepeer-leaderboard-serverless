@@ -107,3 +107,20 @@ func parseUntil(r *http.Request) (time.Time, error) {
 		return time.Unix(int64(sec), int64(frac*1e9)).UTC(), nil
 	}
 }
+
+// ParseDurationParam reads a duration query param with a default fallback.
+// It accepts Go duration strings (e.g., "15m") or numeric seconds.
+func ParseDurationParam(r *http.Request, name string, defaultValue time.Duration) (time.Duration, error) {
+	value := r.URL.Query().Get(name)
+	if value == "" {
+		return defaultValue, nil
+	}
+	if parsed, err := time.ParseDuration(value); err == nil {
+		return parsed, nil
+	}
+	seconds, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return defaultValue, err
+	}
+	return time.Duration(seconds * float64(time.Second)), nil
+}

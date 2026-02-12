@@ -11,13 +11,4 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - leaderboard_postgres_data:/var/lib/postgresql/data
-
-volumes:
-  leaderboard_postgres_data:
-    external: true
-
-networks:
-  default:
-    name: ingress
-    external: true
+      - ./data/:/var/lib/postgresql/data
