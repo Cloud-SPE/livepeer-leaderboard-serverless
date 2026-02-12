@@ -1,6 +1,12 @@
 package metrics
 
-import "github.com/livepeer/leaderboard-serverless/models"
+import (
+	"os"
+	"strings"
+
+	"github.com/livepeer/leaderboard-serverless/common"
+	"github.com/livepeer/leaderboard-serverless/models"
+)
 
 type MetricsStore interface {
 	GPUMetrics(query *models.GPUMetricsQuery) ([]*models.GPUMetric, error)
@@ -16,4 +22,19 @@ func SetStore(store MetricsStore) {
 		return
 	}
 	Store = store
+}
+
+func init() {
+	storeType := strings.ToLower(os.Getenv("METRICS_STORE"))
+	if storeType != "clickhouse" {
+		return
+	}
+
+	clickhouseStore, err := NewClickhouseStoreFromEnv()
+	if err != nil {
+		common.Logger.Warn("Failed to start ClickHouse metrics store, using mock: %v", err)
+		return
+	}
+	common.Logger.Info("Metrics store set to ClickHouse")
+	Store = clickhouseStore
 }

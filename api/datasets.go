@@ -19,6 +19,7 @@ func DatasetsHandler(w http.ResponseWriter, r *http.Request) {
 		Type:     r.URL.Query().Get("type"),
 	}
 
+	common.Logger.Debug("DatasetsHandler query=%+v store=%T", query, metrics.Store)
 	results, err := metrics.Store.Datasets(query)
 	if err != nil {
 		common.HandleInternalError(w, err)

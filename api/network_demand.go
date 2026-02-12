@@ -28,6 +28,7 @@ func NetworkDemandHandler(w http.ResponseWriter, r *http.Request) {
 		Interval: interval,
 	}
 
+	common.Logger.Debug("NetworkDemandHandler query=%+v store=%T", query, metrics.Store)
 	results, err := metrics.Store.NetworkDemand(query)
 	if err != nil {
 		common.HandleInternalError(w, err)

@@ -26,6 +26,7 @@ func SLAComplianceHandler(w http.ResponseWriter, r *http.Request) {
 		Period:         period,
 	}
 
+	common.Logger.Debug("SLAComplianceHandler query=%+v store=%T", query, metrics.Store)
 	results, err := metrics.Store.SLACompliance(query)
 	if err != nil {
 		common.HandleInternalError(w, err)

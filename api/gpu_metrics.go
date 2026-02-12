@@ -29,6 +29,7 @@ func GPUMetricsHandler(w http.ResponseWriter, r *http.Request) {
 		TimeRange:          timeRange,
 	}
 
+	common.Logger.Debug("GPUMetricsHandler query=%+v store=%T", query, metrics.Store)
 	results, err := metrics.Store.GPUMetrics(query)
 	if err != nil {
 		common.HandleInternalError(w, err)
