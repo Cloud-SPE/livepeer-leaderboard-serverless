@@ -15,73 +15,112 @@ func NewMockStore() *MockStore {
 
 func (m *MockStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.GPUMetric, error) {
 	now := time.Now().UTC()
-	gpuID := query.GPUId
-	if gpuID == "" {
-		gpuID = "gpu-0"
+
+	orchAddr := "0x0abe02f6ef1fa8c29f9b3f9f170c6f3681fd3031"
+	if query.OrchestratorAddress != "" {
+		orchAddr = query.OrchestratorAddress
 	}
-	workflow := query.Workflow
-	if workflow == "" {
-		workflow = "inference"
+	pipeline := "streamdiffusion-sdxl"
+	if query.Pipeline != "" {
+		pipeline = query.Pipeline
 	}
-	region := query.Region
-	if region == "" {
-		region = "us-west"
-	}
-	wallet := query.OrchestratorWallet
-	if wallet == "" {
-		wallet = "0x0000000000000000000000000000000000000000"
-	}
+
 	metrics := make([]*models.GPUMetric, 0, 6)
 	for i := 0; i < 6; i++ {
+		jitter := 0.45 + float64(i)*0.08
 		metrics = append(metrics, &models.GPUMetric{
-			OrchestratorWallet: wallet,
-			GPUId:              gpuID,
-			Region:             region,
-			Workflow:           workflow,
-			Timestamp:          now.Add(-time.Duration(i) * time.Minute),
-			UtilizationPct:     55.0 + float64(i)*3.2,
-			MemoryUsedMB:       11000 + float64(i)*420,
-			MemoryTotalMB:      24576,
-			TemperatureC:       68.0 + float64(i)*0.9,
-			PowerWatts:         190.0 + float64(i)*4.1,
-			SuccessRate:        0.995 - float64(i)*0.001,
-			ErrorRate:          0.005 + float64(i)*0.001,
+			WindowStart:         now.Add(-time.Duration(i) * time.Minute),
+			OrchestratorAddress: orchAddr,
+			Pipeline:            pipeline,
+			PipelineID:          "",
+			ModelID:             nilIfEmpty(query.ModelID),
+			GPUID:               nilIfEmpty(query.GPUID),
+			Region:              nilIfEmpty(query.Region),
+			AvgOutputFPS:        14.67 - float64(i)*1.2,
+			P95OutputFPS:        float32(18.19 - float64(i)*1.0),
+			JitterCoeffFPS:      &jitter,
+			StatusSamples:       uint64(6 - i),
 		})
 	}
 	return metrics, nil
 }
 
-func (m *MockStore) NetworkDemand(query *models.NetworkDemandQuery) (*models.NetworkDemand, error) {
+func (m *MockStore) NetworkDemand(query *models.NetworkDemandQuery) ([]*models.NetworkDemandRow, error) {
 	now := time.Now().UTC()
 	interval := query.Interval
-	points := make([]models.NetworkDemandPoint, 0, 12)
+	if interval <= 0 {
+		interval = 15 * time.Minute
+	}
+
+	gateway := "cloud-spe-ai-live-video-tester-mdw"
+	if query.Gateway != "" {
+		gateway = query.Gateway
+	}
+	pipeline := "streamdiffusion-sdxl"
+	if query.Pipeline != "" {
+		pipeline = query.Pipeline
+	}
+
+	rows := make([]*models.NetworkDemandRow, 0, 12)
 	for i := 11; i >= 0; i-- {
-		pointTime := now.Add(-time.Duration(i) * interval)
-		points = append(points, models.NetworkDemandPoint{
-			Timestamp:     pointTime,
-			StreamMinutes: 120 + float64(i)*6,
-			InferMinutes:  60 + float64(i)*3,
+		rows = append(rows, &models.NetworkDemandRow{
+			WindowStart:    now.Add(-time.Duration(i) * interval),
+			Gateway:        gateway,
+			Region:         nilIfEmpty(query.Region),
+			Pipeline:       pipeline,
+			PipelineID:     "",
+			ActiveSessions: 1,
+			ActiveStreams:  1,
+			AvgOutputFPS:   11.99 + float64(i)*0.5,
 		})
 	}
-	return &models.NetworkDemand{
-		Gateway:  defaultString(query.Gateway, "public"),
-		Region:   defaultString(query.Region, "global"),
-		Workflow: defaultString(query.Workflow, "inference"),
-		Interval: interval.String(),
-		Points:   points,
-	}, nil
+	return rows, nil
 }
 
-func (m *MockStore) SLACompliance(query *models.SLAComplianceQuery) (*models.SLACompliance, error) {
+func (m *MockStore) SLACompliance(query *models.SLAComplianceQuery) ([]*models.SLAComplianceRow, error) {
 	now := time.Now().UTC()
-	start := now.Add(-query.Period)
-	return &models.SLACompliance{
-		OrchestratorID: defaultString(query.OrchestratorID, "orch-0"),
-		Period:         query.Period.String(),
-		Score:          97.5,
-		WindowStart:    start,
-		WindowEnd:      now,
-	}, nil
+	period := query.Period
+	if period <= 0 {
+		period = 24 * time.Hour
+	}
+
+	orchAddr := "0x5263e0ce3a97b634d8828ce4337ad0f70b30b077"
+	if query.OrchestratorAddress != "" {
+		orchAddr = query.OrchestratorAddress
+	}
+	pipeline := "streamdiffusion-sdxl"
+	if query.Pipeline != "" {
+		pipeline = query.Pipeline
+	}
+
+	successRatio := 1.0
+	noSwapRatio := 0.75
+	gpuID := "GPU-3f93b3ef-7ea7-4480-aa80-75d59014fb74"
+	modelID := "streamdiffusion-sdxl"
+	if query.ModelID != "" {
+		modelID = query.ModelID
+	}
+	if query.GPUID != "" {
+		gpuID = query.GPUID
+	}
+
+	rows := []*models.SLAComplianceRow{
+		{
+			WindowStart:         now.Add(-period),
+			OrchestratorAddress: orchAddr,
+			Pipeline:            pipeline,
+			PipelineID:          "",
+			ModelID:             &modelID,
+			GPUID:               &gpuID,
+			Region:              nilIfEmpty(query.Region),
+			KnownSessions:       4,
+			UnexcusedSessions:   0,
+			SwappedSessions:     1,
+			SuccessRatio:        &successRatio,
+			NoSwapRatio:         &noSwapRatio,
+		},
+	}
+	return rows, nil
 }
 
 func (m *MockStore) Datasets(query *models.DatasetsQuery) ([]*models.Dataset, error) {
@@ -156,13 +195,13 @@ func (m *MockStore) Datasets(query *models.DatasetsQuery) ([]*models.Dataset, er
 	return filtered, nil
 }
 
-func defaultString(value string, fallback string) string {
-	if value == "" {
-		return fallback
-	}
-	return value
-}
-
 func (m *MockStore) String() string {
 	return fmt.Sprintf("MockStore")
+}
+
+func nilIfEmpty(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }

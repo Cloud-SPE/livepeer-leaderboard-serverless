@@ -14,9 +14,24 @@ import (
 func DatasetsHandler(w http.ResponseWriter, r *http.Request) {
 	middleware.AddStandardHttpHeaders(w)
 
+	if !requireClickhouse(w) {
+		return
+	}
+
+	workflow, err := validateOptionalString("workflow", r.URL.Query().Get("workflow"), 256)
+	if err != nil {
+		common.HandleBadRequest(w, err)
+		return
+	}
+	dsType, err := validateOptionalString("type", r.URL.Query().Get("type"), 256)
+	if err != nil {
+		common.HandleBadRequest(w, err)
+		return
+	}
+
 	query := &models.DatasetsQuery{
-		Workflow: r.URL.Query().Get("workflow"),
-		Type:     r.URL.Query().Get("type"),
+		Workflow: workflow,
+		Type:     dsType,
 	}
 
 	common.Logger.Debug("DatasetsHandler query=%+v store=%T", query, metrics.Store)

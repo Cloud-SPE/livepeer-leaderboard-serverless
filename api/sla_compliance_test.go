@@ -13,7 +13,7 @@ import (
 func TestSLAComplianceHandler(t *testing.T) {
 	metrics.SetStore(metrics.NewMockStore())
 
-	req, err := http.NewRequest("GET", "/sla/compliance?orchestrator_id=orch-9&period=48h", nil)
+	req, err := http.NewRequest("GET", "/sla/compliance?orchestrator_address=0x5263e0ce3a97b634d8828ce4337ad0f70b30b077&pipeline=streamdiffusion-sdxl&period=24h", nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
@@ -23,18 +23,42 @@ func TestSLAComplianceHandler(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
-		t.Fatalf("Handler returned wrong status code: got %v want %v", rr.Code, http.StatusOK)
+		t.Fatalf("Handler returned wrong status code: got %v want %v, body: %s", rr.Code, http.StatusOK, rr.Body.String())
 	}
 
-	var payload models.SLACompliance
+	var payload map[string][]models.SLAComplianceRow
 	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}
 
-	if payload.Score < 0 || payload.Score > 100 {
-		t.Fatalf("Expected score within 0-100, got %v", payload.Score)
+	rows := payload["compliance"]
+	if len(rows) < 1 {
+		t.Fatalf("Expected at least one compliance row, got %d", len(rows))
 	}
-	if payload.OrchestratorID == "" {
-		t.Fatalf("Expected orchestrator_id to be populated")
+	if rows[0].OrchestratorAddress != "0x5263e0ce3a97b634d8828ce4337ad0f70b30b077" {
+		t.Fatalf("Expected orchestrator_address to match query, got %s", rows[0].OrchestratorAddress)
+	}
+	if rows[0].SuccessRatio == nil {
+		t.Fatalf("Expected success_ratio to be populated")
+	}
+	if rows[0].NoSwapRatio == nil {
+		t.Fatalf("Expected no_swap_ratio to be populated")
+	}
+}
+
+func TestSLAComplianceHandler_ValidationRejectsBadPeriod(t *testing.T) {
+	metrics.SetStore(metrics.NewMockStore())
+
+	req, err := http.NewRequest("GET", "/sla/compliance?period=5m", nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(SLAComplianceHandler)
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("Expected 400 for period below 1h, got %v", rr.Code)
 	}
 }

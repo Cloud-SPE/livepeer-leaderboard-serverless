@@ -15,18 +15,59 @@ import (
 func GPUMetricsHandler(w http.ResponseWriter, r *http.Request) {
 	middleware.AddStandardHttpHeaders(w)
 
+	if !requireClickhouse(w) {
+		return
+	}
+
 	timeRange, err := common.ParseDurationParam(r, "time_range", time.Hour)
+	if err != nil {
+		common.HandleBadRequest(w, err)
+		return
+	}
+	if err := validateDuration("time_range", timeRange, time.Minute, 24*time.Hour); err != nil {
+		common.HandleBadRequest(w, err)
+		return
+	}
+
+	orchAddr, err := validateOptionalString("orchestrator_address", r.URL.Query().Get("orchestrator_address"), 256)
+	if err != nil {
+		common.HandleBadRequest(w, err)
+		return
+	}
+	gpuID, err := validateOptionalString("gpu_id", r.URL.Query().Get("gpu_id"), 256)
+	if err != nil {
+		common.HandleBadRequest(w, err)
+		return
+	}
+	region, err := validateOptionalString("region", r.URL.Query().Get("region"), 64)
+	if err != nil {
+		common.HandleBadRequest(w, err)
+		return
+	}
+	pipeline, err := validateOptionalString("pipeline", r.URL.Query().Get("pipeline"), 256)
+	if err != nil {
+		common.HandleBadRequest(w, err)
+		return
+	}
+	pipelineID, err := validateOptionalString("pipeline_id", r.URL.Query().Get("pipeline_id"), 256)
+	if err != nil {
+		common.HandleBadRequest(w, err)
+		return
+	}
+	modelID, err := validateOptionalString("model_id", r.URL.Query().Get("model_id"), 256)
 	if err != nil {
 		common.HandleBadRequest(w, err)
 		return
 	}
 
 	query := &models.GPUMetricsQuery{
-		OrchestratorWallet: r.URL.Query().Get("o_wallet"),
-		GPUId:              r.URL.Query().Get("gpu_id"),
-		Region:             r.URL.Query().Get("region"),
-		Workflow:           r.URL.Query().Get("workflow"),
-		TimeRange:          timeRange,
+		OrchestratorAddress: orchAddr,
+		GPUID:               gpuID,
+		Region:              region,
+		Pipeline:            pipeline,
+		PipelineID:          pipelineID,
+		ModelID:             modelID,
+		TimeRange:           timeRange,
 	}
 
 	common.Logger.Debug("GPUMetricsHandler query=%+v store=%T", query, metrics.Store)

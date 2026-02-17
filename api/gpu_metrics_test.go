@@ -13,7 +13,7 @@ import (
 func TestGPUMetricsHandler(t *testing.T) {
 	metrics.SetStore(metrics.NewMockStore())
 
-	req, err := http.NewRequest("GET", "/gpu/metrics?gpu_id=gpu-9&workflow=inference&region=us-west", nil)
+	req, err := http.NewRequest("GET", "/gpu/metrics?orchestrator_address=0x0abe02f6ef1fa8c29f9b3f9f170c6f3681fd3031&pipeline=streamdiffusion-sdxl-v2v&time_range=1h", nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
@@ -23,7 +23,7 @@ func TestGPUMetricsHandler(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
-		t.Fatalf("Handler returned wrong status code: got %v want %v", rr.Code, http.StatusOK)
+		t.Fatalf("Handler returned wrong status code: got %v want %v, body: %s", rr.Code, http.StatusOK, rr.Body.String())
 	}
 
 	var payload map[string][]models.GPUMetric
@@ -35,7 +35,27 @@ func TestGPUMetricsHandler(t *testing.T) {
 	if len(metricsList) < 2 {
 		t.Fatalf("Expected more than one metric, got %d", len(metricsList))
 	}
-	if metricsList[0].GPUId == "" {
-		t.Fatalf("Expected gpu_id to be populated")
+	if metricsList[0].OrchestratorAddress != "0x0abe02f6ef1fa8c29f9b3f9f170c6f3681fd3031" {
+		t.Fatalf("Expected orchestrator_address to match query, got %s", metricsList[0].OrchestratorAddress)
+	}
+	if metricsList[0].Pipeline != "streamdiffusion-sdxl-v2v" {
+		t.Fatalf("Expected pipeline to match query, got %s", metricsList[0].Pipeline)
+	}
+}
+
+func TestGPUMetricsHandler_ValidationRejectsBadDuration(t *testing.T) {
+	metrics.SetStore(metrics.NewMockStore())
+
+	req, err := http.NewRequest("GET", "/gpu/metrics?time_range=48h", nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(GPUMetricsHandler)
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("Expected 400 for out-of-range time_range, got %v", rr.Code)
 	}
 }

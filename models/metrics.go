@@ -2,62 +2,81 @@ package models
 
 import "time"
 
+// --- GPU Metrics (v_api_gpu_metrics) ---
+
 type GPUMetricsQuery struct {
-	OrchestratorWallet string
-	GPUId              string
-	Region             string
-	Workflow           string
-	TimeRange          time.Duration
+	OrchestratorAddress string
+	Pipeline            string
+	PipelineID          string
+	ModelID             string
+	GPUID               string
+	Region              string
+	TimeRange           time.Duration
 }
 
 type GPUMetric struct {
-	OrchestratorWallet string    `json:"o_wallet"`
-	GPUId              string    `json:"gpu_id"`
-	Region             string    `json:"region"`
-	Workflow           string    `json:"workflow"`
-	Timestamp          time.Time `json:"timestamp"`
-	UtilizationPct     float64   `json:"utilization_pct"`
-	MemoryUsedMB       float64   `json:"memory_used_mb"`
-	MemoryTotalMB      float64   `json:"memory_total_mb"`
-	TemperatureC       float64   `json:"temperature_c"`
-	PowerWatts         float64   `json:"power_watts"`
-	SuccessRate        float64   `json:"success_rate"`
-	ErrorRate          float64   `json:"error_rate"`
+	WindowStart         time.Time `json:"window_start"`
+	OrchestratorAddress string    `json:"orchestrator_address"`
+	Pipeline            string    `json:"pipeline"`
+	PipelineID          string    `json:"pipeline_id"`
+	ModelID             *string   `json:"model_id"`
+	GPUID               *string   `json:"gpu_id"`
+	Region              *string   `json:"region"`
+	AvgOutputFPS        float64   `json:"avg_output_fps"`
+	P95OutputFPS        float32   `json:"p95_output_fps"`
+	JitterCoeffFPS      *float64  `json:"jitter_coeff_fps"`
+	StatusSamples       uint64    `json:"status_samples"`
 }
+
+// --- Network Demand (v_api_network_demand) ---
 
 type NetworkDemandQuery struct {
-	Gateway  string
-	Region   string
-	Workflow string
-	Interval time.Duration
+	Gateway    string
+	Region     string
+	Pipeline   string
+	PipelineID string
+	Interval   time.Duration
 }
 
-type NetworkDemandPoint struct {
-	Timestamp     time.Time `json:"timestamp"`
-	StreamMinutes float64   `json:"stream_minutes"`
-	InferMinutes  float64   `json:"inference_minutes"`
+type NetworkDemandRow struct {
+	WindowStart    time.Time `json:"window_start"`
+	Gateway        string    `json:"gateway"`
+	Region         *string   `json:"region"`
+	Pipeline       string    `json:"pipeline"`
+	PipelineID     string    `json:"pipeline_id"`
+	ActiveSessions uint64    `json:"active_sessions"`
+	ActiveStreams  uint64    `json:"active_streams"`
+	AvgOutputFPS   float64   `json:"avg_output_fps"`
 }
 
-type NetworkDemand struct {
-	Gateway  string               `json:"gateway"`
-	Region   string               `json:"region"`
-	Workflow string               `json:"workflow"`
-	Interval string               `json:"interval"`
-	Points   []NetworkDemandPoint `json:"points"`
-}
+// --- SLA Compliance (v_api_sla_compliance) ---
 
 type SLAComplianceQuery struct {
-	OrchestratorID string
-	Period         time.Duration
+	OrchestratorAddress string
+	Region              string
+	Pipeline            string
+	PipelineID          string
+	ModelID             string
+	GPUID               string
+	Period              time.Duration
 }
 
-type SLACompliance struct {
-	OrchestratorID string    `json:"orchestrator_id"`
-	Period         string    `json:"period"`
-	Score          float64   `json:"score"`
-	WindowStart    time.Time `json:"window_start"`
-	WindowEnd      time.Time `json:"window_end"`
+type SLAComplianceRow struct {
+	WindowStart         time.Time `json:"window_start"`
+	OrchestratorAddress string    `json:"orchestrator_address"`
+	Pipeline            string    `json:"pipeline"`
+	PipelineID          string    `json:"pipeline_id"`
+	ModelID             *string   `json:"model_id"`
+	GPUID               *string   `json:"gpu_id"`
+	Region              *string   `json:"region"`
+	KnownSessions       uint64    `json:"known_sessions"`
+	UnexcusedSessions   uint64    `json:"unexcused_sessions"`
+	SwappedSessions     uint64    `json:"swapped_sessions"`
+	SuccessRatio        *float64  `json:"success_ratio"`
+	NoSwapRatio         *float64  `json:"no_swap_ratio"`
 }
+
+// --- Datasets (no view yet, hard-coded) ---
 
 type DatasetsQuery struct {
 	Workflow string

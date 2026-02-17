@@ -15,8 +15,7 @@ import (
 )
 
 type ClickhouseStore struct {
-	db   *sql.DB
-	mock *MockStore
+	db *sql.DB
 }
 
 func NewClickhouseStoreFromEnv() (*ClickhouseStore, error) {
@@ -52,11 +51,10 @@ func NewClickhouseStoreFromEnv() (*ClickhouseStore, error) {
 	}
 	common.Logger.Info("ClickHouse metrics store connected")
 
-	return &ClickhouseStore{
-		db:   db,
-		mock: NewMockStore(),
-	}, nil
+	return &ClickhouseStore{db: db}, nil
 }
+
+// --- GPU Metrics ---
 
 func (s *ClickhouseStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.GPUMetric, error) {
 	if query == nil {
@@ -70,267 +68,331 @@ func (s *ClickhouseStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.G
 	}
 	start := end.Add(-timeRange)
 
-	sqlQuery := `
-		WITH
-			arrayJoin(JSONExtractArrayRaw(data)) AS orch_raw,
-			arrayElement(JSONExtractArrayRaw(orch_raw, 'hardware'), 1) AS hw,
-			JSONExtractRaw(hw, 'gpu_info') AS gpu_info_raw,
-			JSONExtractRaw(gpu_info_raw, '0') AS gpu0
-		SELECT
-			event_timestamp,
-			JSONExtractString(orch_raw, 'address') AS orch_addr,
-			JSONExtractString(orch_raw, 'local_address') AS local_addr,
-			JSONExtractString(orch_raw, 'orch_uri') AS orch_uri,
-			JSONExtractString(hw, 'pipeline') AS pipeline,
-			JSONExtractString(gpu0, 'id') AS gpu_id,
-			JSONExtractFloat(gpu0, 'memory_total') AS mem_total,
-			JSONExtractFloat(gpu0, 'memory_free') AS mem_free
-		FROM streaming_events
-		WHERE type = 'network_capabilities'
-			AND event_timestamp >= ?
-			AND event_timestamp <= ?
-	`
+	sqlQuery := `SELECT
+		window_start, orchestrator_address, pipeline, pipeline_id,
+		model_id, gpu_id, region,
+		avg_output_fps, p95_output_fps, jitter_coeff_fps, status_samples
+	FROM v_api_gpu_metrics
+	WHERE window_start >= ? AND window_start <= ?`
 
 	args := []interface{}{start, end}
-	if query.Workflow != "" {
-		sqlQuery += " AND JSONExtractString(hw, 'pipeline') = ?"
-		args = append(args, query.Workflow)
+
+	if query.OrchestratorAddress != "" {
+		sqlQuery += " AND orchestrator_address = ?"
+		args = append(args, query.OrchestratorAddress)
 	}
-	if query.GPUId != "" {
-		sqlQuery += " AND JSONExtractString(gpu0, 'id') = ?"
-		args = append(args, query.GPUId)
+	if query.Pipeline != "" {
+		sqlQuery += " AND pipeline = ?"
+		args = append(args, query.Pipeline)
 	}
-	if query.OrchestratorWallet != "" {
-		sqlQuery += ` AND (
-			JSONExtractString(orch_raw, 'address') = ?
-			OR JSONExtractString(orch_raw, 'local_address') = ?
-		)`
-		args = append(args, query.OrchestratorWallet, query.OrchestratorWallet)
+	if query.PipelineID != "" {
+		sqlQuery += " AND pipeline_id = ?"
+		args = append(args, query.PipelineID)
 	}
-	sqlQuery += " ORDER BY event_timestamp DESC LIMIT 200"
+	if query.ModelID != "" {
+		sqlQuery += " AND model_id = ?"
+		args = append(args, query.ModelID)
+	}
+	if query.GPUID != "" {
+		sqlQuery += " AND gpu_id = ?"
+		args = append(args, query.GPUID)
+	}
+	if query.Region != "" {
+		sqlQuery += " AND region = ?"
+		args = append(args, query.Region)
+	}
+
+	sqlQuery += " ORDER BY window_start DESC LIMIT 200"
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	common.Logger.Debug("ClickHouse GPUMetrics query start=%v end=%v", start, end)
+
 	rows, err := s.db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
-		common.Logger.Warn("ClickHouse GPUMetrics query failed, using mock: %v", err)
-		return s.mock.GPUMetrics(query)
+		return nil, fmt.Errorf("gpu metrics query failed: %w", err)
 	}
 	defer rows.Close()
 
 	results := make([]*models.GPUMetric, 0, 50)
 	for rows.Next() {
-		var (
-			timestamp time.Time
-			orchAddr  string
-			localAddr string
-			pipeline  string
-			gpuID     string
-			memTotal  float64
-			memFree   float64
-		)
-		var orchURI string
-		if err := rows.Scan(&timestamp, &orchAddr, &localAddr, &orchURI, &pipeline, &gpuID, &memTotal, &memFree); err != nil {
-			return s.mock.GPUMetrics(query)
+		m := &models.GPUMetric{}
+		// clickhouse-go returns Nullable columns as pointers (*string, *float64)
+		var modelID, gpuID, region *string
+		var jitterCoeff *float64
+		var p95 float32
+
+		if err := rows.Scan(
+			&m.WindowStart, &m.OrchestratorAddress, &m.Pipeline, &m.PipelineID,
+			&modelID, &gpuID, &region,
+			&m.AvgOutputFPS, &p95, &jitterCoeff, &m.StatusSamples,
+		); err != nil {
+			return nil, fmt.Errorf("gpu metrics scan failed: %w", err)
 		}
 
-		orchestratorWallet := firstNonEmpty(orchAddr, localAddr, query.OrchestratorWallet)
-		workflow := firstNonEmpty(query.Workflow, pipeline, "inference")
-		region := firstNonEmpty(query.Region, "global")
+		m.ModelID = modelID
+		m.GPUID = gpuID
+		m.Region = region
+		m.JitterCoeffFPS = jitterCoeff
+		m.P95OutputFPS = p95
 
-		memUsed := memTotal - memFree
-		utilization := 0.0
-		if memTotal > 0 {
-			utilization = (memUsed / memTotal) * 100.0
-		}
-
-		results = append(results, &models.GPUMetric{
-			OrchestratorWallet: orchestratorWallet,
-			GPUId:              gpuID,
-			Region:             region,
-			Workflow:           workflow,
-			Timestamp:          timestamp,
-			UtilizationPct:     utilization,
-			MemoryUsedMB:       bytesToMB(memUsed),
-			MemoryTotalMB:      bytesToMB(memTotal),
-			TemperatureC:       0,
-			PowerWatts:         0,
-			SuccessRate:        1.0,
-			ErrorRate:          0.0,
-		})
+		results = append(results, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("gpu metrics rows iteration: %w", err)
 	}
 
-	if len(results) == 0 {
-		common.Logger.Debug("ClickHouse GPUMetrics returned 0 rows, using mock")
-		return s.mock.GPUMetrics(query)
-	}
 	common.Logger.Debug("ClickHouse GPUMetrics returned %d rows", len(results))
 	return results, nil
 }
 
-func (s *ClickhouseStore) NetworkDemand(query *models.NetworkDemandQuery) (*models.NetworkDemand, error) {
+// --- Network Demand ---
+
+func (s *ClickhouseStore) NetworkDemand(query *models.NetworkDemandQuery) ([]*models.NetworkDemandRow, error) {
 	if query == nil {
 		return nil, errors.New("network demand query cannot be nil")
 	}
 
+	end := time.Now().UTC()
 	interval := query.Interval
 	if interval <= 0 {
 		interval = 15 * time.Minute
 	}
-	end := time.Now().UTC().Truncate(interval)
 	start := end.Add(-interval * 12)
 
-	streamCounts, err := s.queryStreamCounts(start, end, interval, query.Gateway)
-	if err != nil {
-		common.Logger.Warn("ClickHouse NetworkDemand stream query failed, using mock: %v", err)
-		return s.mock.NetworkDemand(query)
+	sqlQuery := `SELECT
+		window_start, gateway, region, pipeline, pipeline_id,
+		active_sessions, active_streams, avg_output_fps
+	FROM v_api_network_demand
+	WHERE window_start >= ? AND window_start <= ?`
+
+	args := []interface{}{start, end}
+
+	if query.Gateway != "" {
+		sqlQuery += " AND gateway = ?"
+		args = append(args, query.Gateway)
 	}
-	inferCounts, err := s.queryInferenceCounts(start, end, interval, query.Gateway, query.Workflow)
-	if err != nil {
-		common.Logger.Warn("ClickHouse NetworkDemand inference query failed, using mock: %v", err)
-		return s.mock.NetworkDemand(query)
+	if query.Region != "" {
+		sqlQuery += " AND region = ?"
+		args = append(args, query.Region)
+	}
+	if query.Pipeline != "" {
+		sqlQuery += " AND pipeline = ?"
+		args = append(args, query.Pipeline)
+	}
+	if query.PipelineID != "" {
+		sqlQuery += " AND pipeline_id = ?"
+		args = append(args, query.PipelineID)
 	}
 
-	points := make([]models.NetworkDemandPoint, 0, 12)
-	for i := 11; i >= 0; i-- {
-		bucket := end.Add(-time.Duration(i) * interval)
-		streamMinutes := float64(streamCounts[bucket]) * interval.Minutes()
-		inferMinutes := float64(inferCounts[bucket]) * interval.Minutes()
-		points = append(points, models.NetworkDemandPoint{
-			Timestamp:     bucket,
-			StreamMinutes: streamMinutes,
-			InferMinutes:  inferMinutes,
-		})
+	sqlQuery += " ORDER BY window_start DESC LIMIT 200"
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	common.Logger.Debug("ClickHouse NetworkDemand query start=%v end=%v", start, end)
+
+	rows, err := s.db.QueryContext(ctx, sqlQuery, args...)
+	if err != nil {
+		return nil, fmt.Errorf("network demand query failed: %w", err)
+	}
+	defer rows.Close()
+
+	results := make([]*models.NetworkDemandRow, 0, 50)
+	for rows.Next() {
+		r := &models.NetworkDemandRow{}
+		// clickhouse-go returns Nullable columns as pointers
+		var region *string
+
+		if err := rows.Scan(
+			&r.WindowStart, &r.Gateway, &region, &r.Pipeline, &r.PipelineID,
+			&r.ActiveSessions, &r.ActiveStreams, &r.AvgOutputFPS,
+		); err != nil {
+			return nil, fmt.Errorf("network demand scan failed: %w", err)
+		}
+
+		r.Region = region
+		results = append(results, r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("network demand rows iteration: %w", err)
 	}
 
-	return &models.NetworkDemand{
-		Gateway:  firstNonEmpty(query.Gateway, "public"),
-		Region:   firstNonEmpty(query.Region, "global"),
-		Workflow: firstNonEmpty(query.Workflow, "inference"),
-		Interval: interval.String(),
-		Points:   points,
-	}, nil
+	common.Logger.Debug("ClickHouse NetworkDemand returned %d rows", len(results))
+	return results, nil
 }
 
-func (s *ClickhouseStore) SLACompliance(query *models.SLAComplianceQuery) (*models.SLACompliance, error) {
+// --- SLA Compliance ---
+
+func (s *ClickhouseStore) SLACompliance(query *models.SLAComplianceQuery) ([]*models.SLAComplianceRow, error) {
 	if query == nil {
 		return nil, errors.New("sla compliance query cannot be nil")
 	}
 
 	end := time.Now().UTC()
-	start := end.Add(-query.Period)
+	period := query.Period
+	if period <= 0 {
+		period = 24 * time.Hour
+	}
+	start := end.Add(-period)
 
-	sqlQuery := `
-		SELECT
-			countIf(JSONExtractString(data, 'state') = 'ONLINE') AS online,
-			count() AS total
-		FROM streaming_events
-		WHERE type = 'ai_stream_status'
-			AND event_timestamp >= ?
-			AND event_timestamp <= ?
-	`
+	sqlQuery := `SELECT
+		window_start, orchestrator_address, pipeline, pipeline_id,
+		model_id, gpu_id, region,
+		known_sessions, unexcused_sessions, swapped_sessions,
+		success_ratio, no_swap_ratio
+	FROM v_api_sla_compliance
+	WHERE window_start >= ? AND window_start <= ?`
+
 	args := []interface{}{start, end}
-	if query.OrchestratorID != "" {
-		sqlQuery += " AND JSONExtractString(JSONExtractRaw(data, 'orchestrator_info'), 'address') = ?"
-		args = append(args, query.OrchestratorID)
+
+	if query.OrchestratorAddress != "" {
+		sqlQuery += " AND orchestrator_address = ?"
+		args = append(args, query.OrchestratorAddress)
 	}
+	if query.Pipeline != "" {
+		sqlQuery += " AND pipeline = ?"
+		args = append(args, query.Pipeline)
+	}
+	if query.PipelineID != "" {
+		sqlQuery += " AND pipeline_id = ?"
+		args = append(args, query.PipelineID)
+	}
+	if query.ModelID != "" {
+		sqlQuery += " AND model_id = ?"
+		args = append(args, query.ModelID)
+	}
+	if query.GPUID != "" {
+		sqlQuery += " AND gpu_id = ?"
+		args = append(args, query.GPUID)
+	}
+	if query.Region != "" {
+		sqlQuery += " AND region = ?"
+		args = append(args, query.Region)
+	}
+
+	sqlQuery += " ORDER BY window_start DESC LIMIT 200"
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	var online uint64
-	var total uint64
 	common.Logger.Debug("ClickHouse SLACompliance query start=%v end=%v", start, end)
-	if err := s.db.QueryRowContext(ctx, sqlQuery, args...).Scan(&online, &total); err != nil {
-		common.Logger.Warn("ClickHouse SLACompliance query failed, using mock: %v", err)
-		return s.mock.SLACompliance(query)
-	}
-	common.Logger.Debug("ClickHouse SLACompliance counts online=%d total=%d", online, total)
 
-	score := 100.0
-	if total > 0 {
-		score = (float64(online) / float64(total)) * 100.0
-	}
-
-	return &models.SLACompliance{
-		OrchestratorID: firstNonEmpty(query.OrchestratorID, "orch-0"),
-		Period:         query.Period.String(),
-		Score:          score,
-		WindowStart:    start,
-		WindowEnd:      end,
-	}, nil
-}
-
-func (s *ClickhouseStore) Datasets(query *models.DatasetsQuery) ([]*models.Dataset, error) {
-	return s.mock.Datasets(query)
-}
-
-func (s *ClickhouseStore) queryStreamCounts(start, end time.Time, interval time.Duration, gateway string) (map[time.Time]uint64, error) {
-	sqlQuery := `
-		SELECT
-			toStartOfInterval(event_timestamp, toIntervalSecond(?)) AS bucket,
-			countDistinct(JSONExtractString(data, 'request_id')) AS count
-		FROM streaming_events
-		WHERE type = 'stream_trace'
-			AND JSONExtractString(data, 'type') = 'gateway_receive_stream_request'
-			AND event_timestamp >= ?
-			AND event_timestamp <= ?
-	`
-	args := []interface{}{int(interval.Seconds()), start, end}
-	if gateway != "" {
-		sqlQuery += " AND gateway = ?"
-		args = append(args, gateway)
-	}
-	sqlQuery += " GROUP BY bucket ORDER BY bucket"
-
-	return s.queryBucketCounts(sqlQuery, args...)
-}
-
-func (s *ClickhouseStore) queryInferenceCounts(start, end time.Time, interval time.Duration, gateway, workflow string) (map[time.Time]uint64, error) {
-	sqlQuery := `
-		SELECT
-			toStartOfInterval(event_timestamp, toIntervalSecond(?)) AS bucket,
-			countDistinct(JSONExtractString(data, 'stream_id')) AS count
-		FROM streaming_events
-		WHERE type = 'ai_stream_status'
-			AND event_timestamp >= ?
-			AND event_timestamp <= ?
-	`
-	args := []interface{}{int(interval.Seconds()), start, end}
-	if gateway != "" {
-		sqlQuery += " AND gateway = ?"
-		args = append(args, gateway)
-	}
-	if workflow != "" {
-		sqlQuery += " AND JSONExtractString(data, 'pipeline') = ?"
-		args = append(args, workflow)
-	}
-	sqlQuery += " GROUP BY bucket ORDER BY bucket"
-
-	return s.queryBucketCounts(sqlQuery, args...)
-}
-
-func (s *ClickhouseStore) queryBucketCounts(sqlQuery string, args ...interface{}) (map[time.Time]uint64, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	common.Logger.Debug("ClickHouse bucket query: %s", strings.Join(strings.Fields(sqlQuery), " "))
 	rows, err := s.db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("sla compliance query failed: %w", err)
 	}
 	defer rows.Close()
 
-	results := make(map[time.Time]uint64)
+	results := make([]*models.SLAComplianceRow, 0, 50)
 	for rows.Next() {
-		var bucket time.Time
-		var count uint64
-		if err := rows.Scan(&bucket, &count); err != nil {
-			return nil, err
+		r := &models.SLAComplianceRow{}
+		// clickhouse-go returns Nullable columns as pointers
+		var modelID, gpuID, region *string
+		var successRatio, noSwapRatio *float64
+
+		if err := rows.Scan(
+			&r.WindowStart, &r.OrchestratorAddress, &r.Pipeline, &r.PipelineID,
+			&modelID, &gpuID, &region,
+			&r.KnownSessions, &r.UnexcusedSessions, &r.SwappedSessions,
+			&successRatio, &noSwapRatio,
+		); err != nil {
+			return nil, fmt.Errorf("sla compliance scan failed: %w", err)
 		}
-		results[bucket] = count
+
+		r.ModelID = modelID
+		r.GPUID = gpuID
+		r.Region = region
+		r.SuccessRatio = successRatio
+		r.NoSwapRatio = noSwapRatio
+
+		results = append(results, r)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sla compliance rows iteration: %w", err)
+	}
+
+	common.Logger.Debug("ClickHouse SLACompliance returned %d rows", len(results))
 	return results, nil
 }
+
+// --- Datasets (hard-coded, no view yet) ---
+
+func (s *ClickhouseStore) Datasets(query *models.DatasetsQuery) ([]*models.Dataset, error) {
+	now := time.Now().UTC()
+	datasets := []*models.Dataset{
+		{
+			ID:          "dataset-good-001",
+			Workflow:    "streaming",
+			Type:        "good",
+			Description: "Stable network load test sample set.",
+			SizeMB:      512,
+			UpdatedAt:   now.Add(-48 * time.Hour),
+			URI:         "s3://livepeer/datasets/streaming/good-001",
+		},
+		{
+			ID:          "dataset-good-002",
+			Workflow:    "inference",
+			Type:        "good",
+			Description: "Low-latency inference benchmark set.",
+			SizeMB:      1536,
+			UpdatedAt:   now.Add(-36 * time.Hour),
+			URI:         "s3://livepeer/datasets/inference/good-002",
+		},
+		{
+			ID:          "dataset-random-002",
+			Workflow:    "inference",
+			Type:        "random",
+			Description: "Mixed inference prompts for baseline variance.",
+			SizeMB:      2048,
+			UpdatedAt:   now.Add(-24 * time.Hour),
+			URI:         "s3://livepeer/datasets/inference/random-002",
+		},
+		{
+			ID:          "dataset-random-003",
+			Workflow:    "streaming",
+			Type:        "random",
+			Description: "Randomized bitrate and segment sizes.",
+			SizeMB:      640,
+			UpdatedAt:   now.Add(-12 * time.Hour),
+			URI:         "s3://livepeer/datasets/streaming/random-003",
+		},
+		{
+			ID:          "dataset-bad-003",
+			Workflow:    "streaming",
+			Type:        "bad",
+			Description: "Adversarial network conditions for failure testing.",
+			SizeMB:      768,
+			UpdatedAt:   now.Add(-72 * time.Hour),
+			URI:         "s3://livepeer/datasets/streaming/bad-003",
+		},
+		{
+			ID:          "dataset-bad-004",
+			Workflow:    "inference",
+			Type:        "bad",
+			Description: "Adversarial prompts causing retries.",
+			SizeMB:      980,
+			UpdatedAt:   now.Add(-96 * time.Hour),
+			URI:         "s3://livepeer/datasets/inference/bad-004",
+		},
+	}
+
+	if query == nil {
+		return datasets, nil
+	}
+
+	filtered := make([]*models.Dataset, 0, len(datasets))
+	for _, d := range datasets {
+		if query.Workflow != "" && d.Workflow != query.Workflow {
+			continue
+		}
+		if query.Type != "" && d.Type != query.Type {
+			continue
+		}
+		filtered = append(filtered, d)
+	}
+	return filtered, nil
+}
+
+// --- helpers ---
 
 func envOrDefault(name, fallback string) string {
 	value := strings.TrimSpace(os.Getenv(name))
@@ -338,22 +400,6 @@ func envOrDefault(name, fallback string) string {
 		return fallback
 	}
 	return value
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return value
-		}
-	}
-	return ""
-}
-
-func bytesToMB(value float64) float64 {
-	if value <= 0 {
-		return 0
-	}
-	return value / (1024.0 * 1024.0)
 }
 
 func protocolFromString(value string) clickhouse.Protocol {

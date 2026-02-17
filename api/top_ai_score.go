@@ -14,9 +14,11 @@ import (
 
 // TopAiScoreHandler handles a request for the top regional scores
 func TopAiScoreHandler(w http.ResponseWriter, r *http.Request) {
-
 	common.Logger.Debug("TopScoresHandler called")
 
+	if !requirePostgresEnv(w) {
+		return
+	}
 	if err := db.CacheDB(); err != nil {
 		common.HandleInternalError(w, err)
 		return

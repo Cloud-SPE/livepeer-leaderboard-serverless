@@ -5,12 +5,22 @@ import (
 
 	handler "github.com/livepeer/leaderboard-serverless/api"
 	"github.com/livepeer/leaderboard-serverless/common"
+	"github.com/livepeer/leaderboard-serverless/metrics"
 )
 
 // this func is for running in local mode.  Vercel does not use this as an entrypoint
 // so any logic here should only reflect what is needed for local development
 func main() {
 
+	// Explicit ClickHouse init for local mode.
+	// Vercel handlers use metrics.CacheCH() lazily per-request instead.
+	ch, err := metrics.NewClickhouseStoreFromEnv()
+	if err != nil {
+		common.Logger.Fatal("Failed to initialise ClickHouse metrics store: %v", err)
+	}
+	metrics.SetStore(ch)
+
+	http.HandleFunc("/api/health", handler.HealthHandler)
 	http.HandleFunc("/api/raw_stats", handler.RawStatsHandler)
 	http.HandleFunc("/api/aggregated_stats", handler.AggregatedStatsHandler)
 	http.HandleFunc("/api/top_ai_score", handler.TopAiScoreHandler)
