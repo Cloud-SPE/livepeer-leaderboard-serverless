@@ -24,27 +24,27 @@ func NetworkDemandHandler(w http.ResponseWriter, r *http.Request) {
 		common.HandleBadRequest(w, err)
 		return
 	}
-	if err := validateDuration("interval", interval, time.Minute, 24*time.Hour); err != nil {
+	if err := common.ValidateDuration("interval", interval, time.Minute, 24*time.Hour); err != nil {
 		common.HandleBadRequest(w, err)
 		return
 	}
 
-	gateway, err := validateOptionalString("gateway", r.URL.Query().Get("gateway"), 256)
+	gateway, err := common.ValidateOptionalString("gateway", r.URL.Query().Get("gateway"), 256)
 	if err != nil {
 		common.HandleBadRequest(w, err)
 		return
 	}
-	region, err := validateOptionalString("region", r.URL.Query().Get("region"), 64)
+	region, err := common.ValidateOptionalString("region", r.URL.Query().Get("region"), 64)
 	if err != nil {
 		common.HandleBadRequest(w, err)
 		return
 	}
-	pipeline, err := validateOptionalString("pipeline", r.URL.Query().Get("pipeline"), 256)
+	pipeline, err := common.ValidateOptionalString("pipeline", r.URL.Query().Get("pipeline"), 256)
 	if err != nil {
 		common.HandleBadRequest(w, err)
 		return
 	}
-	pipelineID, err := validateOptionalString("pipeline_id", r.URL.Query().Get("pipeline_id"), 256)
+	pipelineID, err := common.ValidateOptionalString("pipeline_id", r.URL.Query().Get("pipeline_id"), 256)
 	if err != nil {
 		common.HandleBadRequest(w, err)
 		return

@@ -2,13 +2,40 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 
+	"github.com/livepeer/leaderboard-serverless/common"
 	"github.com/livepeer/leaderboard-serverless/db"
 	"github.com/livepeer/leaderboard-serverless/metrics"
 	"github.com/livepeer/leaderboard-serverless/middleware"
 )
+
+// requirePostgresEnv checks that Postgres is reachable.
+// If db.Store is already initialised (e.g. tests), it passes immediately.
+// Otherwise it checks for the POSTGRES env var.
+// Returns true if ready; writes a 503 and returns false otherwise.
+func requirePostgresEnv(w http.ResponseWriter) bool {
+	if db.Store != nil {
+		return true
+	}
+	if os.Getenv("POSTGRES") != "" {
+		return true
+	}
+	common.RespondWithError(w, fmt.Errorf("postgres is not configured"), http.StatusServiceUnavailable)
+	return false
+}
+
+// requireClickhouse ensures the ClickHouse metrics store is initialised.
+// Returns true if ready; writes a 503 and returns false otherwise.
+func requireClickhouse(w http.ResponseWriter) bool {
+	if err := metrics.CacheCH(); err != nil {
+		common.RespondWithError(w, fmt.Errorf("clickhouse is not available"), http.StatusServiceUnavailable)
+		return false
+	}
+	return true
+}
 
 type componentStatus struct {
 	OK    bool   `json:"ok"`

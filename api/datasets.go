@@ -18,12 +18,12 @@ func DatasetsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workflow, err := validateOptionalString("workflow", r.URL.Query().Get("workflow"), 256)
+	workflow, err := common.ValidateOptionalString("workflow", r.URL.Query().Get("workflow"), 256)
 	if err != nil {
 		common.HandleBadRequest(w, err)
 		return
 	}
-	dsType, err := validateOptionalString("type", r.URL.Query().Get("type"), 256)
+	dsType, err := common.ValidateOptionalString("type", r.URL.Query().Get("type"), 256)
 	if err != nil {
 		common.HandleBadRequest(w, err)
 		return

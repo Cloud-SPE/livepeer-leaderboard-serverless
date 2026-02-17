@@ -24,37 +24,37 @@ func SLAComplianceHandler(w http.ResponseWriter, r *http.Request) {
 		common.HandleBadRequest(w, err)
 		return
 	}
-	if err := validateDuration("period", period, time.Hour, 30*24*time.Hour); err != nil {
+	if err := common.ValidateDuration("period", period, time.Hour, 30*24*time.Hour); err != nil {
 		common.HandleBadRequest(w, err)
 		return
 	}
 
-	orchAddr, err := validateOptionalString("orchestrator_address", r.URL.Query().Get("orchestrator_address"), 256)
+	orchAddr, err := common.ValidateOptionalString("orchestrator_address", r.URL.Query().Get("orchestrator_address"), 256)
 	if err != nil {
 		common.HandleBadRequest(w, err)
 		return
 	}
-	region, err := validateOptionalString("region", r.URL.Query().Get("region"), 64)
+	region, err := common.ValidateOptionalString("region", r.URL.Query().Get("region"), 64)
 	if err != nil {
 		common.HandleBadRequest(w, err)
 		return
 	}
-	pipeline, err := validateOptionalString("pipeline", r.URL.Query().Get("pipeline"), 256)
+	pipeline, err := common.ValidateOptionalString("pipeline", r.URL.Query().Get("pipeline"), 256)
 	if err != nil {
 		common.HandleBadRequest(w, err)
 		return
 	}
-	pipelineID, err := validateOptionalString("pipeline_id", r.URL.Query().Get("pipeline_id"), 256)
+	pipelineID, err := common.ValidateOptionalString("pipeline_id", r.URL.Query().Get("pipeline_id"), 256)
 	if err != nil {
 		common.HandleBadRequest(w, err)
 		return
 	}
-	modelID, err := validateOptionalString("model_id", r.URL.Query().Get("model_id"), 256)
+	modelID, err := common.ValidateOptionalString("model_id", r.URL.Query().Get("model_id"), 256)
 	if err != nil {
 		common.HandleBadRequest(w, err)
 		return
 	}
-	gpuID, err := validateOptionalString("gpu_id", r.URL.Query().Get("gpu_id"), 256)
+	gpuID, err := common.ValidateOptionalString("gpu_id", r.URL.Query().Get("gpu_id"), 256)
 	if err != nil {
 		common.HandleBadRequest(w, err)
 		return
