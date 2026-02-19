@@ -44,6 +44,12 @@ func TestSLAComplianceHandler(t *testing.T) {
 	if rows[0].NoSwapRatio == nil {
 		t.Fatalf("Expected no_swap_ratio to be populated")
 	}
+	if rows[0].SLAScore == nil {
+		t.Fatalf("Expected sla_score to be populated")
+	}
+	if rows[0].SuccessSessions == 0 {
+		t.Fatalf("Expected success_sessions to be non-zero")
+	}
 }
 
 func TestSLAComplianceHandler_ValidationRejectsBadPeriod(t *testing.T) {

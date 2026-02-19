@@ -59,6 +59,21 @@ func GPUMetricsHandler(w http.ResponseWriter, r *http.Request) {
 		common.HandleBadRequest(w, err)
 		return
 	}
+	gpuName, err := common.ValidateOptionalString("gpu_name", r.URL.Query().Get("gpu_name"), 256)
+	if err != nil {
+		common.HandleBadRequest(w, err)
+		return
+	}
+	runnerVersion, err := common.ValidateOptionalString("runner_version", r.URL.Query().Get("runner_version"), 64)
+	if err != nil {
+		common.HandleBadRequest(w, err)
+		return
+	}
+	cudaVersion, err := common.ValidateOptionalString("cuda_version", r.URL.Query().Get("cuda_version"), 32)
+	if err != nil {
+		common.HandleBadRequest(w, err)
+		return
+	}
 
 	query := &models.GPUMetricsQuery{
 		OrchestratorAddress: orchAddr,
@@ -67,6 +82,9 @@ func GPUMetricsHandler(w http.ResponseWriter, r *http.Request) {
 		Pipeline:            pipeline,
 		PipelineID:          pipelineID,
 		ModelID:             modelID,
+		GPUName:             gpuName,
+		RunnerVersion:       runnerVersion,
+		CudaVersion:         cudaVersion,
 		TimeRange:           timeRange,
 	}
 

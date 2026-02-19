@@ -25,9 +25,22 @@ func (m *MockStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.GPUMetr
 		pipeline = query.Pipeline
 	}
 
+	gpuName := "NVIDIA RTX 4090"
+	var gpuMemory uint64 = 24576
+	runnerVersion := "0.9.1"
+	cudaVersion := "12.4"
+
 	metrics := make([]*models.GPUMetric, 0, 6)
 	for i := 0; i < 6; i++ {
 		jitter := 0.45 + float64(i)*0.08
+		promptToFirstFrame := 120.5 + float64(i)*10.0
+		startupTimeMs := 250.0 + float64(i)*15.0
+		startupTimeS := startupTimeMs / 1000.0
+		e2eLatency := 350.0 + float64(i)*20.0
+		p95Prompt := float32(180.0 + float64(i)*12.0)
+		p95Startup := float32(400.0 + float64(i)*18.0)
+		p95E2E := float32(500.0 + float64(i)*25.0)
+
 		metrics = append(metrics, &models.GPUMetric{
 			WindowStart:         now.Add(-time.Duration(i) * time.Minute),
 			OrchestratorAddress: orchAddr,
@@ -40,6 +53,32 @@ func (m *MockStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.GPUMetr
 			P95OutputFPS:        float32(18.19 - float64(i)*1.0),
 			JitterCoeffFPS:      &jitter,
 			StatusSamples:       uint64(6 - i),
+
+			GPUName:        &gpuName,
+			GPUMemoryTotal: &gpuMemory,
+			RunnerVersion:  &runnerVersion,
+			CudaVersion:    &cudaVersion,
+
+			PromptToFirstFrameMs:    &promptToFirstFrame,
+			StartupTimeMs:           &startupTimeMs,
+			StartupTimeS:            &startupTimeS,
+			E2ELatencyMs:            &e2eLatency,
+			P95PromptToFirstFrameMs: &p95Prompt,
+			P95StartupTimeMs:        &p95Startup,
+			P95E2ELatencyMs:         &p95E2E,
+
+			ValidPromptToFirstFrameCount: uint64(5 - i%5),
+			ValidStartupTimeCount:        uint64(5 - i%5),
+			ValidE2ELatencyCount:         uint64(5 - i%5),
+
+			KnownSessions:     uint64(10 - i),
+			SuccessSessions:   uint64(8 - i),
+			ExcusedSessions:   1,
+			UnexcusedSessions: uint64(i % 2),
+			SwappedSessions:   uint64(i % 3),
+
+			FailureRate: float64(i%2) * 0.05,
+			SwapRate:    float64(i%3) * 0.03,
 		})
 	}
 	return metrics, nil
@@ -64,14 +103,24 @@ func (m *MockStore) NetworkDemand(query *models.NetworkDemandQuery) ([]*models.N
 	rows := make([]*models.NetworkDemandRow, 0, 12)
 	for i := 11; i >= 0; i-- {
 		rows = append(rows, &models.NetworkDemandRow{
-			WindowStart:    now.Add(-time.Duration(i) * interval),
-			Gateway:        gateway,
-			Region:         nilIfEmpty(query.Region),
-			Pipeline:       pipeline,
-			PipelineID:     "",
-			ActiveSessions: 1,
-			ActiveStreams:  1,
-			AvgOutputFPS:   11.99 + float64(i)*0.5,
+			WindowStart:           now.Add(-time.Duration(i) * interval),
+			Gateway:               gateway,
+			Region:                nilIfEmpty(query.Region),
+			Pipeline:              pipeline,
+			PipelineID:            "",
+			TotalSessions:         uint64(3 + i),
+			TotalStreams:          uint64(2 + i),
+			AvgOutputFPS:          11.99 + float64(i)*0.5,
+			TotalInferenceMinutes: 45.5 + float64(i)*3.0,
+			KnownSessions:         uint64(3 + i),
+			ServedSessions:        uint64(2 + i),
+			UnservedSessions:      1,
+			TotalDemandSessions:   uint64(4 + i),
+			UnexcusedSessions:     uint64(i % 2),
+			SwappedSessions:       uint64(i % 3),
+			MissingCapacityCount:  uint64(i % 2),
+			SuccessRatio:          0.92 + float64(i)*0.005,
+			FeePaymentEth:         0.0025 + float64(i)*0.0003,
 		})
 	}
 	return rows, nil
@@ -95,6 +144,7 @@ func (m *MockStore) SLACompliance(query *models.SLAComplianceQuery) ([]*models.S
 
 	successRatio := 1.0
 	noSwapRatio := 0.75
+	slaScore := 0.95
 	gpuID := "GPU-3f93b3ef-7ea7-4480-aa80-75d59014fb74"
 	modelID := "streamdiffusion-sdxl"
 	if query.ModelID != "" {
@@ -114,10 +164,13 @@ func (m *MockStore) SLACompliance(query *models.SLAComplianceQuery) ([]*models.S
 			GPUID:               &gpuID,
 			Region:              nilIfEmpty(query.Region),
 			KnownSessions:       4,
+			SuccessSessions:     3,
+			ExcusedSessions:     1,
 			UnexcusedSessions:   0,
 			SwappedSessions:     1,
 			SuccessRatio:        &successRatio,
 			NoSwapRatio:         &noSwapRatio,
+			SLAScore:            &slaScore,
 		},
 	}
 	return rows, nil

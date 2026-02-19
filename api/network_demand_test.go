@@ -41,6 +41,15 @@ func TestNetworkDemandHandler(t *testing.T) {
 	if rows[0].Pipeline != "streamdiffusion-sdxl" {
 		t.Fatalf("Expected pipeline to match query, got %s", rows[0].Pipeline)
 	}
+	if rows[0].TotalSessions == 0 {
+		t.Fatalf("Expected total_sessions to be non-zero")
+	}
+	if rows[0].TotalStreams == 0 {
+		t.Fatalf("Expected total_streams to be non-zero")
+	}
+	if rows[0].SuccessRatio == 0 {
+		t.Fatalf("Expected success_ratio to be non-zero")
+	}
 }
 
 func TestNetworkDemandHandler_ValidationRejectsBadDuration(t *testing.T) {

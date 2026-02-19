@@ -41,6 +41,15 @@ func TestGPUMetricsHandler(t *testing.T) {
 	if metricsList[0].Pipeline != "streamdiffusion-sdxl-v2v" {
 		t.Fatalf("Expected pipeline to match query, got %s", metricsList[0].Pipeline)
 	}
+	if metricsList[0].GPUName == nil {
+		t.Fatalf("Expected gpu_name to be populated")
+	}
+	if metricsList[0].PromptToFirstFrameMs == nil {
+		t.Fatalf("Expected prompt_to_first_frame_ms to be populated")
+	}
+	if metricsList[0].KnownSessions == 0 {
+		t.Fatalf("Expected known_sessions to be non-zero")
+	}
 }
 
 func TestGPUMetricsHandler_ValidationRejectsBadDuration(t *testing.T) {

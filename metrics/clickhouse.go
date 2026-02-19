@@ -71,7 +71,13 @@ func (s *ClickhouseStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.G
 	sqlQuery := `SELECT
 		window_start, orchestrator_address, pipeline, pipeline_id,
 		model_id, gpu_id, region,
-		avg_output_fps, p95_output_fps, jitter_coeff_fps, status_samples
+		avg_output_fps, p95_output_fps, jitter_coeff_fps, status_samples,
+		gpu_name, gpu_memory_total, runner_version, cuda_version,
+		prompt_to_first_frame_ms, startup_time_ms, startup_time_s, e2e_latency_ms,
+		p95_prompt_to_first_frame_ms, p95_startup_time_ms, p95_e2e_latency_ms,
+		valid_prompt_to_first_frame_count, valid_startup_time_count, valid_e2e_latency_count,
+		known_sessions, success_sessions, excused_sessions, unexcused_sessions, swapped_sessions,
+		failure_rate, swap_rate
 	FROM v_api_gpu_metrics
 	WHERE window_start >= ? AND window_start <= ?`
 
@@ -101,6 +107,18 @@ func (s *ClickhouseStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.G
 		sqlQuery += " AND region = ?"
 		args = append(args, query.Region)
 	}
+	if query.GPUName != "" {
+		sqlQuery += " AND gpu_name = ?"
+		args = append(args, query.GPUName)
+	}
+	if query.RunnerVersion != "" {
+		sqlQuery += " AND runner_version = ?"
+		args = append(args, query.RunnerVersion)
+	}
+	if query.CudaVersion != "" {
+		sqlQuery += " AND cuda_version = ?"
+		args = append(args, query.CudaVersion)
+	}
 
 	sqlQuery += " ORDER BY window_start DESC LIMIT 200"
 
@@ -117,15 +135,25 @@ func (s *ClickhouseStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.G
 	results := make([]*models.GPUMetric, 0, 50)
 	for rows.Next() {
 		m := &models.GPUMetric{}
-		// clickhouse-go returns Nullable columns as pointers (*string, *float64)
+		// clickhouse-go returns Nullable columns as pointers
 		var modelID, gpuID, region *string
 		var jitterCoeff *float64
 		var p95 float32
+		var gpuName, runnerVersion, cudaVersion *string
+		var gpuMemoryTotal *uint64
+		var promptToFirstFrameMs, startupTimeMs, startupTimeS, e2eLatencyMs *float64
+		var p95PromptToFirstFrameMs, p95StartupTimeMs, p95E2ELatencyMs *float32
 
 		if err := rows.Scan(
 			&m.WindowStart, &m.OrchestratorAddress, &m.Pipeline, &m.PipelineID,
 			&modelID, &gpuID, &region,
 			&m.AvgOutputFPS, &p95, &jitterCoeff, &m.StatusSamples,
+			&gpuName, &gpuMemoryTotal, &runnerVersion, &cudaVersion,
+			&promptToFirstFrameMs, &startupTimeMs, &startupTimeS, &e2eLatencyMs,
+			&p95PromptToFirstFrameMs, &p95StartupTimeMs, &p95E2ELatencyMs,
+			&m.ValidPromptToFirstFrameCount, &m.ValidStartupTimeCount, &m.ValidE2ELatencyCount,
+			&m.KnownSessions, &m.SuccessSessions, &m.ExcusedSessions, &m.UnexcusedSessions, &m.SwappedSessions,
+			&m.FailureRate, &m.SwapRate,
 		); err != nil {
 			return nil, fmt.Errorf("gpu metrics scan failed: %w", err)
 		}
@@ -135,6 +163,17 @@ func (s *ClickhouseStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.G
 		m.Region = region
 		m.JitterCoeffFPS = jitterCoeff
 		m.P95OutputFPS = p95
+		m.GPUName = gpuName
+		m.GPUMemoryTotal = gpuMemoryTotal
+		m.RunnerVersion = runnerVersion
+		m.CudaVersion = cudaVersion
+		m.PromptToFirstFrameMs = promptToFirstFrameMs
+		m.StartupTimeMs = startupTimeMs
+		m.StartupTimeS = startupTimeS
+		m.E2ELatencyMs = e2eLatencyMs
+		m.P95PromptToFirstFrameMs = p95PromptToFirstFrameMs
+		m.P95StartupTimeMs = p95StartupTimeMs
+		m.P95E2ELatencyMs = p95E2ELatencyMs
 
 		results = append(results, m)
 	}
@@ -162,7 +201,10 @@ func (s *ClickhouseStore) NetworkDemand(query *models.NetworkDemandQuery) ([]*mo
 
 	sqlQuery := `SELECT
 		window_start, gateway, region, pipeline, pipeline_id,
-		active_sessions, active_streams, avg_output_fps
+		total_sessions, total_streams, avg_output_fps,
+		total_inference_minutes, known_sessions, served_sessions, unserved_sessions,
+		total_demand_sessions, unexcused_sessions, swapped_sessions,
+		missing_capacity_count, success_ratio, fee_payment_eth
 	FROM v_api_network_demand
 	WHERE window_start >= ? AND window_start <= ?`
 
@@ -205,7 +247,10 @@ func (s *ClickhouseStore) NetworkDemand(query *models.NetworkDemandQuery) ([]*mo
 
 		if err := rows.Scan(
 			&r.WindowStart, &r.Gateway, &region, &r.Pipeline, &r.PipelineID,
-			&r.ActiveSessions, &r.ActiveStreams, &r.AvgOutputFPS,
+			&r.TotalSessions, &r.TotalStreams, &r.AvgOutputFPS,
+			&r.TotalInferenceMinutes, &r.KnownSessions, &r.ServedSessions, &r.UnservedSessions,
+			&r.TotalDemandSessions, &r.UnexcusedSessions, &r.SwappedSessions,
+			&r.MissingCapacityCount, &r.SuccessRatio, &r.FeePaymentEth,
 		); err != nil {
 			return nil, fmt.Errorf("network demand scan failed: %w", err)
 		}
@@ -238,8 +283,9 @@ func (s *ClickhouseStore) SLACompliance(query *models.SLAComplianceQuery) ([]*mo
 	sqlQuery := `SELECT
 		window_start, orchestrator_address, pipeline, pipeline_id,
 		model_id, gpu_id, region,
-		known_sessions, unexcused_sessions, swapped_sessions,
-		success_ratio, no_swap_ratio
+		known_sessions, success_sessions, excused_sessions,
+		unexcused_sessions, swapped_sessions,
+		success_ratio, no_swap_ratio, sla_score
 	FROM v_api_sla_compliance
 	WHERE window_start >= ? AND window_start <= ?`
 
@@ -287,13 +333,14 @@ func (s *ClickhouseStore) SLACompliance(query *models.SLAComplianceQuery) ([]*mo
 		r := &models.SLAComplianceRow{}
 		// clickhouse-go returns Nullable columns as pointers
 		var modelID, gpuID, region *string
-		var successRatio, noSwapRatio *float64
+		var successRatio, noSwapRatio, slaScore *float64
 
 		if err := rows.Scan(
 			&r.WindowStart, &r.OrchestratorAddress, &r.Pipeline, &r.PipelineID,
 			&modelID, &gpuID, &region,
-			&r.KnownSessions, &r.UnexcusedSessions, &r.SwappedSessions,
-			&successRatio, &noSwapRatio,
+			&r.KnownSessions, &r.SuccessSessions, &r.ExcusedSessions,
+			&r.UnexcusedSessions, &r.SwappedSessions,
+			&successRatio, &noSwapRatio, &slaScore,
 		); err != nil {
 			return nil, fmt.Errorf("sla compliance scan failed: %w", err)
 		}
@@ -303,6 +350,7 @@ func (s *ClickhouseStore) SLACompliance(query *models.SLAComplianceQuery) ([]*mo
 		r.Region = region
 		r.SuccessRatio = successRatio
 		r.NoSwapRatio = noSwapRatio
+		r.SLAScore = slaScore
 
 		results = append(results, r)
 	}
