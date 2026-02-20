@@ -69,7 +69,7 @@ func (s *ClickhouseStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.G
 	start := end.Add(-timeRange)
 
 	sqlQuery := `SELECT
-		window_start, orchestrator_address, pipeline, pipeline_id,
+		window_start, orchestrator_address, pipeline,
 		model_id, gpu_id, region,
 		avg_output_fps, p95_output_fps, jitter_coeff_fps, status_samples,
 		gpu_name, gpu_memory_total, runner_version, cuda_version,
@@ -90,10 +90,6 @@ func (s *ClickhouseStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.G
 	if query.Pipeline != "" {
 		sqlQuery += " AND pipeline = ?"
 		args = append(args, query.Pipeline)
-	}
-	if query.PipelineID != "" {
-		sqlQuery += " AND pipeline_id = ?"
-		args = append(args, query.PipelineID)
 	}
 	if query.ModelID != "" {
 		sqlQuery += " AND model_id = ?"
@@ -145,7 +141,7 @@ func (s *ClickhouseStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.G
 		var p95PromptToFirstFrameMs, p95StartupTimeMs, p95E2ELatencyMs *float32
 
 		if err := rows.Scan(
-			&m.WindowStart, &m.OrchestratorAddress, &m.Pipeline, &m.PipelineID,
+			&m.WindowStart, &m.OrchestratorAddress, &m.Pipeline,
 			&modelID, &gpuID, &region,
 			&m.AvgOutputFPS, &p95, &jitterCoeff, &m.StatusSamples,
 			&gpuName, &gpuMemoryTotal, &runnerVersion, &cudaVersion,
@@ -200,7 +196,7 @@ func (s *ClickhouseStore) NetworkDemand(query *models.NetworkDemandQuery) ([]*mo
 	start := end.Add(-interval * 12)
 
 	sqlQuery := `SELECT
-		window_start, gateway, region, pipeline, pipeline_id,
+		window_start, gateway, region, pipeline,
 		total_sessions, total_streams, avg_output_fps,
 		total_inference_minutes, known_sessions, served_sessions, unserved_sessions,
 		total_demand_sessions, unexcused_sessions, swapped_sessions,
@@ -222,10 +218,6 @@ func (s *ClickhouseStore) NetworkDemand(query *models.NetworkDemandQuery) ([]*mo
 		sqlQuery += " AND pipeline = ?"
 		args = append(args, query.Pipeline)
 	}
-	if query.PipelineID != "" {
-		sqlQuery += " AND pipeline_id = ?"
-		args = append(args, query.PipelineID)
-	}
 
 	sqlQuery += " ORDER BY window_start DESC LIMIT 200"
 
@@ -246,7 +238,7 @@ func (s *ClickhouseStore) NetworkDemand(query *models.NetworkDemandQuery) ([]*mo
 		var region *string
 
 		if err := rows.Scan(
-			&r.WindowStart, &r.Gateway, &region, &r.Pipeline, &r.PipelineID,
+			&r.WindowStart, &r.Gateway, &region, &r.Pipeline,
 			&r.TotalSessions, &r.TotalStreams, &r.AvgOutputFPS,
 			&r.TotalInferenceMinutes, &r.KnownSessions, &r.ServedSessions, &r.UnservedSessions,
 			&r.TotalDemandSessions, &r.UnexcusedSessions, &r.SwappedSessions,
@@ -281,7 +273,7 @@ func (s *ClickhouseStore) SLACompliance(query *models.SLAComplianceQuery) ([]*mo
 	start := end.Add(-period)
 
 	sqlQuery := `SELECT
-		window_start, orchestrator_address, pipeline, pipeline_id,
+		window_start, orchestrator_address, pipeline,
 		model_id, gpu_id, region,
 		known_sessions, success_sessions, excused_sessions,
 		unexcused_sessions, swapped_sessions,
@@ -298,10 +290,6 @@ func (s *ClickhouseStore) SLACompliance(query *models.SLAComplianceQuery) ([]*mo
 	if query.Pipeline != "" {
 		sqlQuery += " AND pipeline = ?"
 		args = append(args, query.Pipeline)
-	}
-	if query.PipelineID != "" {
-		sqlQuery += " AND pipeline_id = ?"
-		args = append(args, query.PipelineID)
 	}
 	if query.ModelID != "" {
 		sqlQuery += " AND model_id = ?"
@@ -336,7 +324,7 @@ func (s *ClickhouseStore) SLACompliance(query *models.SLAComplianceQuery) ([]*mo
 		var successRatio, noSwapRatio, slaScore *float64
 
 		if err := rows.Scan(
-			&r.WindowStart, &r.OrchestratorAddress, &r.Pipeline, &r.PipelineID,
+			&r.WindowStart, &r.OrchestratorAddress, &r.Pipeline,
 			&modelID, &gpuID, &region,
 			&r.KnownSessions, &r.SuccessSessions, &r.ExcusedSessions,
 			&r.UnexcusedSessions, &r.SwappedSessions,

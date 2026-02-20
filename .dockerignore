@@ -1,0 +1,10 @@
+data/
+.claude/
+.vscode/
+.vercel/
+docker-compose.yml
+test-mock-apis.sh
+sample-output.txt
+sample-analytics-data
+vercel.json
+NAAP_API_CHANGES.md

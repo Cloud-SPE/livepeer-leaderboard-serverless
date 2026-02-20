@@ -7,7 +7,6 @@ import "time"
 type GPUMetricsQuery struct {
 	OrchestratorAddress string
 	Pipeline            string
-	PipelineID          string
 	ModelID             string
 	GPUID               string
 	Region              string
@@ -21,7 +20,6 @@ type GPUMetric struct {
 	WindowStart         time.Time `json:"window_start"`
 	OrchestratorAddress string    `json:"orchestrator_address"`
 	Pipeline            string    `json:"pipeline"`
-	PipelineID          string    `json:"pipeline_id"`
 	ModelID             *string   `json:"model_id"`
 	GPUID               *string   `json:"gpu_id"`
 	Region              *string   `json:"region"`
@@ -65,11 +63,10 @@ type GPUMetric struct {
 // --- Network Demand (v_api_network_demand) ---
 
 type NetworkDemandQuery struct {
-	Gateway    string
-	Region     string
-	Pipeline   string
-	PipelineID string
-	Interval   time.Duration
+	Gateway  string
+	Region   string
+	Pipeline string
+	Interval time.Duration
 }
 
 type NetworkDemandRow struct {
@@ -77,7 +74,6 @@ type NetworkDemandRow struct {
 	Gateway               string    `json:"gateway"`
 	Region                *string   `json:"region"`
 	Pipeline              string    `json:"pipeline"`
-	PipelineID            string    `json:"pipeline_id"`
 	TotalSessions         uint64    `json:"total_sessions"`
 	TotalStreams          uint64    `json:"total_streams"`
 	AvgOutputFPS          float64   `json:"avg_output_fps"`
@@ -99,7 +95,6 @@ type SLAComplianceQuery struct {
 	OrchestratorAddress string
 	Region              string
 	Pipeline            string
-	PipelineID          string
 	ModelID             string
 	GPUID               string
 	Period              time.Duration
@@ -109,7 +104,6 @@ type SLAComplianceRow struct {
 	WindowStart         time.Time `json:"window_start"`
 	OrchestratorAddress string    `json:"orchestrator_address"`
 	Pipeline            string    `json:"pipeline"`
-	PipelineID          string    `json:"pipeline_id"`
 	ModelID             *string   `json:"model_id"`
 	GPUID               *string   `json:"gpu_id"`
 	Region              *string   `json:"region"`
