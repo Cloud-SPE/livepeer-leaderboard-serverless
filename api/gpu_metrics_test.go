@@ -50,6 +50,12 @@ func TestGPUMetricsHandler(t *testing.T) {
 	if metricsList[0].KnownSessions == 0 {
 		t.Fatalf("Expected known_sessions to be non-zero")
 	}
+	if metricsList[0].StartupSuccessSessions == 0 {
+		t.Fatalf("Expected startup_success_sessions to be non-zero")
+	}
+	if metricsList[0].ConfirmedSwappedSessions+metricsList[0].InferredOrchestratorChangeSessions == 0 {
+		t.Fatalf("Expected swapped session breakdown counters to be populated")
+	}
 }
 
 func TestGPUMetricsHandler_ValidationRejectsBadDuration(t *testing.T) {

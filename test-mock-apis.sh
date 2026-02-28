@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-base_url="${BASE_URL:-http://localhost:8080}"
+base_url="${BASE_URL:-http://localhost:8084}"
 
 echo "=== Health ==="
 curl -sS "${base_url}/api/health" | jq .
@@ -13,7 +13,7 @@ echo "=== GPU Metrics (unfiltered, last hour) ==="
 curl -sS "${base_url}/api/gpu/metrics?time_range=1h" | jq .
 
 echo "=== Network Demand (by gateway) ==="
-curl -sS "${base_url}/api/network/demand?gateway=cloud-spe-ai-live-video-tester-mdw&pipeline=streamdiffusion-sdxl&interval=15m" | jq .
+curl -sS "${base_url}/api/network/demand?gateway=cloud-spe-ai-live-video-tester-mdw&pipeline=streamdiffusion-sdxl&model_id=streamdiffusion-sdxl&interval=15m" | jq .
 
 echo "=== Network Demand (unfiltered) ==="
 curl -sS "${base_url}/api/network/demand?interval=1h" | jq .

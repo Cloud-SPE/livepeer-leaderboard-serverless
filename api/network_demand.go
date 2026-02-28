@@ -44,10 +44,16 @@ func NetworkDemandHandler(w http.ResponseWriter, r *http.Request) {
 		common.HandleBadRequest(w, err)
 		return
 	}
+	modelID, err := common.ValidateOptionalString("model_id", r.URL.Query().Get("model_id"), 256)
+	if err != nil {
+		common.HandleBadRequest(w, err)
+		return
+	}
 	query := &models.NetworkDemandQuery{
 		Gateway:  gateway,
 		Region:   region,
 		Pipeline: pipeline,
+		ModelID:  modelID,
 		Interval: interval,
 	}
 

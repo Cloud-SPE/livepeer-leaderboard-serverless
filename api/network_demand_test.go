@@ -13,7 +13,7 @@ import (
 func TestNetworkDemandHandler(t *testing.T) {
 	metrics.SetStore(metrics.NewMockStore())
 
-	req, err := http.NewRequest("GET", "/network/demand?gateway=cloud-spe-ai-live-video-tester-mdw&pipeline=streamdiffusion-sdxl&interval=15m", nil)
+	req, err := http.NewRequest("GET", "/network/demand?gateway=cloud-spe-ai-live-video-tester-mdw&pipeline=streamdiffusion-sdxl&model_id=streamdiffusion-sdxl&interval=15m", nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
@@ -41,6 +41,9 @@ func TestNetworkDemandHandler(t *testing.T) {
 	if rows[0].Pipeline != "streamdiffusion-sdxl" {
 		t.Fatalf("Expected pipeline to match query, got %s", rows[0].Pipeline)
 	}
+	if rows[0].ModelID == nil || *rows[0].ModelID != "streamdiffusion-sdxl" {
+		t.Fatalf("Expected model_id to match query, got %+v", rows[0].ModelID)
+	}
 	if rows[0].TotalSessions == 0 {
 		t.Fatalf("Expected total_sessions to be non-zero")
 	}
@@ -49,6 +52,9 @@ func TestNetworkDemandHandler(t *testing.T) {
 	}
 	if rows[0].SuccessRatio == 0 {
 		t.Fatalf("Expected success_ratio to be non-zero")
+	}
+	if rows[0].ConfirmedSwappedSessions+rows[0].InferredOrchestratorChangeSessions == 0 {
+		t.Fatalf("Expected swapped session breakdown counters to be populated")
 	}
 }
 

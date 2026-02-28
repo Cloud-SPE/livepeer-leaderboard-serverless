@@ -76,7 +76,8 @@ func (s *ClickhouseStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.G
 		prompt_to_first_frame_ms, startup_time_ms, startup_time_s, e2e_latency_ms,
 		p95_prompt_to_first_frame_ms, p95_startup_time_ms, p95_e2e_latency_ms,
 		valid_prompt_to_first_frame_count, valid_startup_time_count, valid_e2e_latency_count,
-		known_sessions, success_sessions, excused_sessions, unexcused_sessions, swapped_sessions,
+		known_sessions, startup_success_sessions, excused_sessions, unexcused_sessions,
+		confirmed_swapped_sessions, inferred_orchestrator_change_sessions, swapped_sessions,
 		failure_rate, swap_rate
 	FROM v_api_gpu_metrics
 	WHERE window_start >= ? AND window_start <= ?`
@@ -134,7 +135,8 @@ func (s *ClickhouseStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.G
 		// clickhouse-go returns Nullable columns as pointers
 		var modelID, gpuID, region *string
 		var jitterCoeff *float64
-		var p95 float32
+		var avgOutputFPS sql.NullFloat64
+		var p95OutputFPS sql.NullFloat64
 		var gpuName, runnerVersion, cudaVersion *string
 		var gpuMemoryTotal *uint64
 		var promptToFirstFrameMs, startupTimeMs, startupTimeS, e2eLatencyMs *float64
@@ -143,12 +145,13 @@ func (s *ClickhouseStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.G
 		if err := rows.Scan(
 			&m.WindowStart, &m.OrchestratorAddress, &m.Pipeline,
 			&modelID, &gpuID, &region,
-			&m.AvgOutputFPS, &p95, &jitterCoeff, &m.StatusSamples,
+			&avgOutputFPS, &p95OutputFPS, &jitterCoeff, &m.StatusSamples,
 			&gpuName, &gpuMemoryTotal, &runnerVersion, &cudaVersion,
 			&promptToFirstFrameMs, &startupTimeMs, &startupTimeS, &e2eLatencyMs,
 			&p95PromptToFirstFrameMs, &p95StartupTimeMs, &p95E2ELatencyMs,
 			&m.ValidPromptToFirstFrameCount, &m.ValidStartupTimeCount, &m.ValidE2ELatencyCount,
-			&m.KnownSessions, &m.SuccessSessions, &m.ExcusedSessions, &m.UnexcusedSessions, &m.SwappedSessions,
+			&m.KnownSessions, &m.StartupSuccessSessions, &m.ExcusedSessions, &m.UnexcusedSessions,
+			&m.ConfirmedSwappedSessions, &m.InferredOrchestratorChangeSessions, &m.SwappedSessions,
 			&m.FailureRate, &m.SwapRate,
 		); err != nil {
 			return nil, fmt.Errorf("gpu metrics scan failed: %w", err)
@@ -157,8 +160,13 @@ func (s *ClickhouseStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.G
 		m.ModelID = modelID
 		m.GPUID = gpuID
 		m.Region = region
+		if avgOutputFPS.Valid {
+			m.AvgOutputFPS = avgOutputFPS.Float64
+		}
 		m.JitterCoeffFPS = jitterCoeff
-		m.P95OutputFPS = p95
+		if p95OutputFPS.Valid {
+			m.P95OutputFPS = float32(p95OutputFPS.Float64)
+		}
 		m.GPUName = gpuName
 		m.GPUMemoryTotal = gpuMemoryTotal
 		m.RunnerVersion = runnerVersion
@@ -196,10 +204,11 @@ func (s *ClickhouseStore) NetworkDemand(query *models.NetworkDemandQuery) ([]*mo
 	start := end.Add(-interval * 12)
 
 	sqlQuery := `SELECT
-		window_start, gateway, region, pipeline,
+		window_start, gateway, region, pipeline, model_id,
 		total_sessions, total_streams, avg_output_fps,
 		total_inference_minutes, known_sessions, served_sessions, unserved_sessions,
-		total_demand_sessions, unexcused_sessions, swapped_sessions,
+		total_demand_sessions, unexcused_sessions,
+		confirmed_swapped_sessions, inferred_orchestrator_change_sessions, swapped_sessions,
 		missing_capacity_count, success_ratio, fee_payment_eth
 	FROM v_api_network_demand
 	WHERE window_start >= ? AND window_start <= ?`
@@ -218,6 +227,10 @@ func (s *ClickhouseStore) NetworkDemand(query *models.NetworkDemandQuery) ([]*mo
 		sqlQuery += " AND pipeline = ?"
 		args = append(args, query.Pipeline)
 	}
+	if query.ModelID != "" {
+		sqlQuery += " AND model_id = ?"
+		args = append(args, query.ModelID)
+	}
 
 	sqlQuery += " ORDER BY window_start DESC LIMIT 200"
 
@@ -235,19 +248,21 @@ func (s *ClickhouseStore) NetworkDemand(query *models.NetworkDemandQuery) ([]*mo
 	for rows.Next() {
 		r := &models.NetworkDemandRow{}
 		// clickhouse-go returns Nullable columns as pointers
-		var region *string
+		var region, modelID *string
 
 		if err := rows.Scan(
-			&r.WindowStart, &r.Gateway, &region, &r.Pipeline,
+			&r.WindowStart, &r.Gateway, &region, &r.Pipeline, &modelID,
 			&r.TotalSessions, &r.TotalStreams, &r.AvgOutputFPS,
 			&r.TotalInferenceMinutes, &r.KnownSessions, &r.ServedSessions, &r.UnservedSessions,
-			&r.TotalDemandSessions, &r.UnexcusedSessions, &r.SwappedSessions,
+			&r.TotalDemandSessions, &r.UnexcusedSessions,
+			&r.ConfirmedSwappedSessions, &r.InferredOrchestratorChangeSessions, &r.SwappedSessions,
 			&r.MissingCapacityCount, &r.SuccessRatio, &r.FeePaymentEth,
 		); err != nil {
 			return nil, fmt.Errorf("network demand scan failed: %w", err)
 		}
 
 		r.Region = region
+		r.ModelID = modelID
 		results = append(results, r)
 	}
 	if err := rows.Err(); err != nil {
@@ -275,8 +290,8 @@ func (s *ClickhouseStore) SLACompliance(query *models.SLAComplianceQuery) ([]*mo
 	sqlQuery := `SELECT
 		window_start, orchestrator_address, pipeline,
 		model_id, gpu_id, region,
-		known_sessions, success_sessions, excused_sessions,
-		unexcused_sessions, swapped_sessions,
+		known_sessions, startup_success_sessions, excused_sessions,
+		unexcused_sessions, confirmed_swapped_sessions, inferred_orchestrator_change_sessions, swapped_sessions,
 		success_ratio, no_swap_ratio, sla_score
 	FROM v_api_sla_compliance
 	WHERE window_start >= ? AND window_start <= ?`
@@ -326,8 +341,8 @@ func (s *ClickhouseStore) SLACompliance(query *models.SLAComplianceQuery) ([]*mo
 		if err := rows.Scan(
 			&r.WindowStart, &r.OrchestratorAddress, &r.Pipeline,
 			&modelID, &gpuID, &region,
-			&r.KnownSessions, &r.SuccessSessions, &r.ExcusedSessions,
-			&r.UnexcusedSessions, &r.SwappedSessions,
+			&r.KnownSessions, &r.StartupSuccessSessions, &r.ExcusedSessions,
+			&r.UnexcusedSessions, &r.ConfirmedSwappedSessions, &r.InferredOrchestratorChangeSessions, &r.SwappedSessions,
 			&successRatio, &noSwapRatio, &slaScore,
 		); err != nil {
 			return nil, fmt.Errorf("sla compliance scan failed: %w", err)

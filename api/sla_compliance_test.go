@@ -47,8 +47,11 @@ func TestSLAComplianceHandler(t *testing.T) {
 	if rows[0].SLAScore == nil {
 		t.Fatalf("Expected sla_score to be populated")
 	}
-	if rows[0].SuccessSessions == 0 {
-		t.Fatalf("Expected success_sessions to be non-zero")
+	if rows[0].StartupSuccessSessions == 0 {
+		t.Fatalf("Expected startup_success_sessions to be non-zero")
+	}
+	if rows[0].ConfirmedSwappedSessions+rows[0].InferredOrchestratorChangeSessions == 0 {
+		t.Fatalf("Expected swapped session breakdown counters to be populated")
 	}
 }
 

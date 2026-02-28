@@ -24,6 +24,10 @@ func (m *MockStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.GPUMetr
 	if query.Pipeline != "" {
 		pipeline = query.Pipeline
 	}
+	modelID := "streamdiffusion-sdxl"
+	if query.ModelID != "" {
+		modelID = query.ModelID
+	}
 
 	gpuName := "NVIDIA RTX 4090"
 	var gpuMemory uint64 = 24576
@@ -45,7 +49,7 @@ func (m *MockStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.GPUMetr
 			WindowStart:         now.Add(-time.Duration(i) * time.Minute),
 			OrchestratorAddress: orchAddr,
 			Pipeline:            pipeline,
-			ModelID:             nilIfEmpty(query.ModelID),
+			ModelID:             &modelID,
 			GPUID:               nilIfEmpty(query.GPUID),
 			Region:              nilIfEmpty(query.Region),
 			AvgOutputFPS:        14.67 - float64(i)*1.2,
@@ -70,11 +74,13 @@ func (m *MockStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.GPUMetr
 			ValidStartupTimeCount:        uint64(5 - i%5),
 			ValidE2ELatencyCount:         uint64(5 - i%5),
 
-			KnownSessions:     uint64(10 - i),
-			SuccessSessions:   uint64(8 - i),
-			ExcusedSessions:   1,
-			UnexcusedSessions: uint64(i % 2),
-			SwappedSessions:   uint64(i % 3),
+			KnownSessions:                      uint64(10 - i),
+			StartupSuccessSessions:             uint64(8 - i),
+			ExcusedSessions:                    1,
+			UnexcusedSessions:                  uint64(i % 2),
+			ConfirmedSwappedSessions:           uint64(i % 2),
+			InferredOrchestratorChangeSessions: uint64((i + 1) % 2),
+			SwappedSessions:                    uint64(i % 3),
 
 			FailureRate: float64(i%2) * 0.05,
 			SwapRate:    float64(i%3) * 0.03,
@@ -98,27 +104,34 @@ func (m *MockStore) NetworkDemand(query *models.NetworkDemandQuery) ([]*models.N
 	if query.Pipeline != "" {
 		pipeline = query.Pipeline
 	}
+	modelID := "streamdiffusion-sdxl"
+	if query.ModelID != "" {
+		modelID = query.ModelID
+	}
 
 	rows := make([]*models.NetworkDemandRow, 0, 12)
 	for i := 11; i >= 0; i-- {
 		rows = append(rows, &models.NetworkDemandRow{
-			WindowStart:           now.Add(-time.Duration(i) * interval),
-			Gateway:               gateway,
-			Region:                nilIfEmpty(query.Region),
-			Pipeline:              pipeline,
-			TotalSessions:         uint64(3 + i),
-			TotalStreams:          uint64(2 + i),
-			AvgOutputFPS:          11.99 + float64(i)*0.5,
-			TotalInferenceMinutes: 45.5 + float64(i)*3.0,
-			KnownSessions:         uint64(3 + i),
-			ServedSessions:        uint64(2 + i),
-			UnservedSessions:      1,
-			TotalDemandSessions:   uint64(4 + i),
-			UnexcusedSessions:     uint64(i % 2),
-			SwappedSessions:       uint64(i % 3),
-			MissingCapacityCount:  uint64(i % 2),
-			SuccessRatio:          0.92 + float64(i)*0.005,
-			FeePaymentEth:         0.0025 + float64(i)*0.0003,
+			WindowStart:                        now.Add(-time.Duration(i) * interval),
+			Gateway:                            gateway,
+			Region:                             nilIfEmpty(query.Region),
+			Pipeline:                           pipeline,
+			ModelID:                            &modelID,
+			TotalSessions:                      uint64(3 + i),
+			TotalStreams:                       uint64(2 + i),
+			AvgOutputFPS:                       11.99 + float64(i)*0.5,
+			TotalInferenceMinutes:              45.5 + float64(i)*3.0,
+			KnownSessions:                      uint64(3 + i),
+			ServedSessions:                     uint64(2 + i),
+			UnservedSessions:                   1,
+			TotalDemandSessions:                uint64(4 + i),
+			UnexcusedSessions:                  uint64(i % 2),
+			ConfirmedSwappedSessions:           uint64(i % 2),
+			InferredOrchestratorChangeSessions: uint64((i + 1) % 2),
+			SwappedSessions:                    uint64(i % 3),
+			MissingCapacityCount:               uint64(i % 2),
+			SuccessRatio:                       0.92 + float64(i)*0.005,
+			FeePaymentEth:                      0.0025 + float64(i)*0.0003,
 		})
 	}
 	return rows, nil
@@ -154,20 +167,22 @@ func (m *MockStore) SLACompliance(query *models.SLAComplianceQuery) ([]*models.S
 
 	rows := []*models.SLAComplianceRow{
 		{
-			WindowStart:         now.Add(-period),
-			OrchestratorAddress: orchAddr,
-			Pipeline:            pipeline,
-			ModelID:             &modelID,
-			GPUID:               &gpuID,
-			Region:              nilIfEmpty(query.Region),
-			KnownSessions:       4,
-			SuccessSessions:     3,
-			ExcusedSessions:     1,
-			UnexcusedSessions:   0,
-			SwappedSessions:     1,
-			SuccessRatio:        &successRatio,
-			NoSwapRatio:         &noSwapRatio,
-			SLAScore:            &slaScore,
+			WindowStart:                        now.Add(-period),
+			OrchestratorAddress:                orchAddr,
+			Pipeline:                           pipeline,
+			ModelID:                            &modelID,
+			GPUID:                              &gpuID,
+			Region:                             nilIfEmpty(query.Region),
+			KnownSessions:                      4,
+			StartupSuccessSessions:             3,
+			ExcusedSessions:                    1,
+			UnexcusedSessions:                  0,
+			ConfirmedSwappedSessions:           1,
+			InferredOrchestratorChangeSessions: 0,
+			SwappedSessions:                    1,
+			SuccessRatio:                       &successRatio,
+			NoSwapRatio:                        &noSwapRatio,
+			SLAScore:                           &slaScore,
 		},
 	}
 	return rows, nil

@@ -49,11 +49,13 @@ type GPUMetric struct {
 	ValidE2ELatencyCount         uint64 `json:"valid_e2e_latency_count"`
 
 	// Session breakdowns
-	KnownSessions     uint64 `json:"known_sessions"`
-	SuccessSessions   uint64 `json:"success_sessions"`
-	ExcusedSessions   uint64 `json:"excused_sessions"`
-	UnexcusedSessions uint64 `json:"unexcused_sessions"`
-	SwappedSessions   uint64 `json:"swapped_sessions"`
+	KnownSessions                      uint64 `json:"known_sessions"`
+	StartupSuccessSessions             uint64 `json:"startup_success_sessions"`
+	ExcusedSessions                    uint64 `json:"excused_sessions"`
+	UnexcusedSessions                  uint64 `json:"unexcused_sessions"`
+	ConfirmedSwappedSessions           uint64 `json:"confirmed_swapped_sessions"`
+	InferredOrchestratorChangeSessions uint64 `json:"inferred_orchestrator_change_sessions"`
+	SwappedSessions                    uint64 `json:"swapped_sessions"`
 
 	// Rates
 	FailureRate float64 `json:"failure_rate"`
@@ -66,27 +68,31 @@ type NetworkDemandQuery struct {
 	Gateway  string
 	Region   string
 	Pipeline string
+	ModelID  string
 	Interval time.Duration
 }
 
 type NetworkDemandRow struct {
-	WindowStart           time.Time `json:"window_start"`
-	Gateway               string    `json:"gateway"`
-	Region                *string   `json:"region"`
-	Pipeline              string    `json:"pipeline"`
-	TotalSessions         uint64    `json:"total_sessions"`
-	TotalStreams          uint64    `json:"total_streams"`
-	AvgOutputFPS          float64   `json:"avg_output_fps"`
-	TotalInferenceMinutes float64   `json:"total_inference_minutes"`
-	KnownSessions         uint64    `json:"known_sessions"`
-	ServedSessions        uint64    `json:"served_sessions"`
-	UnservedSessions      uint64    `json:"unserved_sessions"`
-	TotalDemandSessions   uint64    `json:"total_demand_sessions"`
-	UnexcusedSessions     uint64    `json:"unexcused_sessions"`
-	SwappedSessions       uint64    `json:"swapped_sessions"`
-	MissingCapacityCount  uint64    `json:"missing_capacity_count"`
-	SuccessRatio          float64   `json:"success_ratio"`
-	FeePaymentEth         float64   `json:"fee_payment_eth"`
+	WindowStart                        time.Time `json:"window_start"`
+	Gateway                            string    `json:"gateway"`
+	Region                             *string   `json:"region"`
+	Pipeline                           string    `json:"pipeline"`
+	ModelID                            *string   `json:"model_id"`
+	TotalSessions                      uint64    `json:"total_sessions"`
+	TotalStreams                       uint64    `json:"total_streams"`
+	AvgOutputFPS                       float64   `json:"avg_output_fps"`
+	TotalInferenceMinutes              float64   `json:"total_inference_minutes"`
+	KnownSessions                      uint64    `json:"known_sessions"`
+	ServedSessions                     uint64    `json:"served_sessions"`
+	UnservedSessions                   uint64    `json:"unserved_sessions"`
+	TotalDemandSessions                uint64    `json:"total_demand_sessions"`
+	UnexcusedSessions                  uint64    `json:"unexcused_sessions"`
+	ConfirmedSwappedSessions           uint64    `json:"confirmed_swapped_sessions"`
+	InferredOrchestratorChangeSessions uint64    `json:"inferred_orchestrator_change_sessions"`
+	SwappedSessions                    uint64    `json:"swapped_sessions"`
+	MissingCapacityCount               uint64    `json:"missing_capacity_count"`
+	SuccessRatio                       float64   `json:"success_ratio"`
+	FeePaymentEth                      float64   `json:"fee_payment_eth"`
 }
 
 // --- SLA Compliance (v_api_sla_compliance) ---
@@ -101,20 +107,22 @@ type SLAComplianceQuery struct {
 }
 
 type SLAComplianceRow struct {
-	WindowStart         time.Time `json:"window_start"`
-	OrchestratorAddress string    `json:"orchestrator_address"`
-	Pipeline            string    `json:"pipeline"`
-	ModelID             *string   `json:"model_id"`
-	GPUID               *string   `json:"gpu_id"`
-	Region              *string   `json:"region"`
-	KnownSessions       uint64    `json:"known_sessions"`
-	SuccessSessions     uint64    `json:"success_sessions"`
-	ExcusedSessions     uint64    `json:"excused_sessions"`
-	UnexcusedSessions   uint64    `json:"unexcused_sessions"`
-	SwappedSessions     uint64    `json:"swapped_sessions"`
-	SuccessRatio        *float64  `json:"success_ratio"`
-	NoSwapRatio         *float64  `json:"no_swap_ratio"`
-	SLAScore            *float64  `json:"sla_score"`
+	WindowStart                        time.Time `json:"window_start"`
+	OrchestratorAddress                string    `json:"orchestrator_address"`
+	Pipeline                           string    `json:"pipeline"`
+	ModelID                            *string   `json:"model_id"`
+	GPUID                              *string   `json:"gpu_id"`
+	Region                             *string   `json:"region"`
+	KnownSessions                      uint64    `json:"known_sessions"`
+	StartupSuccessSessions             uint64    `json:"startup_success_sessions"`
+	ExcusedSessions                    uint64    `json:"excused_sessions"`
+	UnexcusedSessions                  uint64    `json:"unexcused_sessions"`
+	ConfirmedSwappedSessions           uint64    `json:"confirmed_swapped_sessions"`
+	InferredOrchestratorChangeSessions uint64    `json:"inferred_orchestrator_change_sessions"`
+	SwappedSessions                    uint64    `json:"swapped_sessions"`
+	SuccessRatio                       *float64  `json:"success_ratio"`
+	NoSwapRatio                        *float64  `json:"no_swap_ratio"`
+	SLAScore                           *float64  `json:"sla_score"`
 }
 
 // --- Datasets (no view yet, hard-coded) ---
