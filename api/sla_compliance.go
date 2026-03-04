@@ -39,7 +39,7 @@ func SLAComplianceHandler(w http.ResponseWriter, r *http.Request) {
 		common.HandleBadRequest(w, err)
 		return
 	}
-	pipeline, err := common.ValidateOptionalString("pipeline", r.URL.Query().Get("pipeline"), 256)
+	pipelineID, err := common.ValidateOptionalString("pipeline_id", r.URL.Query().Get("pipeline_id"), 256)
 	if err != nil {
 		common.HandleBadRequest(w, err)
 		return
@@ -58,7 +58,7 @@ func SLAComplianceHandler(w http.ResponseWriter, r *http.Request) {
 	query := &models.SLAComplianceQuery{
 		OrchestratorAddress: orchAddr,
 		Region:              region,
-		Pipeline:            pipeline,
+		PipelineID:          pipelineID,
 		ModelID:             modelID,
 		GPUID:               gpuID,
 		Period:              period,

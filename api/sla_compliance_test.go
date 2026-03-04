@@ -13,7 +13,7 @@ import (
 func TestSLAComplianceHandler(t *testing.T) {
 	metrics.SetStore(metrics.NewMockStore())
 
-	req, err := http.NewRequest("GET", "/sla/compliance?orchestrator_address=0x5263e0ce3a97b634d8828ce4337ad0f70b30b077&pipeline=streamdiffusion-sdxl&period=24h", nil)
+	req, err := http.NewRequest("GET", "/sla/compliance?orchestrator_address=0x5263e0ce3a97b634d8828ce4337ad0f70b30b077&pipeline_id=streamdiffusion-sdxl&period=24h", nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
@@ -38,11 +38,14 @@ func TestSLAComplianceHandler(t *testing.T) {
 	if rows[0].OrchestratorAddress != "0x5263e0ce3a97b634d8828ce4337ad0f70b30b077" {
 		t.Fatalf("Expected orchestrator_address to match query, got %s", rows[0].OrchestratorAddress)
 	}
-	if rows[0].SuccessRatio == nil {
-		t.Fatalf("Expected success_ratio to be populated")
+	if rows[0].EffectiveSuccessRate == nil {
+		t.Fatalf("Expected effective_success_rate to be populated")
 	}
-	if rows[0].NoSwapRatio == nil {
-		t.Fatalf("Expected no_swap_ratio to be populated")
+	if rows[0].StartupSuccessRate == nil {
+		t.Fatalf("Expected startup_success_rate to be populated")
+	}
+	if rows[0].NoSwapRate == nil {
+		t.Fatalf("Expected no_swap_rate to be populated")
 	}
 	if rows[0].SLAScore == nil {
 		t.Fatalf("Expected sla_score to be populated")
@@ -50,8 +53,14 @@ func TestSLAComplianceHandler(t *testing.T) {
 	if rows[0].StartupSuccessSessions == 0 {
 		t.Fatalf("Expected startup_success_sessions to be non-zero")
 	}
-	if rows[0].ConfirmedSwappedSessions+rows[0].InferredOrchestratorChangeSessions == 0 {
+	if rows[0].ConfirmedSwappedSessions+rows[0].InferredSwapSessions == 0 {
 		t.Fatalf("Expected swapped session breakdown counters to be populated")
+	}
+	if rows[0].ErrorStatusSamples == 0 {
+		t.Fatalf("Expected error_status_samples to be populated")
+	}
+	if rows[0].HealthSignalCoverageRatio == 0 {
+		t.Fatalf("Expected health_signal_coverage_ratio to be populated")
 	}
 }
 

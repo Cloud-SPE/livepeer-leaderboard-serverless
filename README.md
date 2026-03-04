@@ -17,9 +17,9 @@ see [figure 1](#figure-1---logical-overview-of-livepeers-testing).
 The serverless functions can be deployed using `vercel-cli` or self-hosted. 
 
 ### Production API Consumers 
-* Livepeer Inc - https://explorer.livepeer.org (Performance Leaderboard)
-* Interptr- https://interptr-latest-test-streams.vercel.app (Transcoding Test Stream UI)
-* Livepeer.Cloud SPE - https://inspector.livepeer.cloud/ (AI and Transcoding Test Job UI) 
+* [Livepeer Inc](https://explorer.livepeer.org) (Performance Leaderboard)
+* [Interptr](https://interptr-latest-test-streams.vercel.app) (Transcoding Test Stream UI)
+* [Livepeer.Cloud SPE](https://inspector.livepeer.cloud/) (AI and Transcoding Test Job UI) 
 
 
 ## Required Software
@@ -29,13 +29,13 @@ This software can run on many operating systems.  Make sure you have the below s
 * **Git** 
   * [Install Guide](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
 * **Go** 1.23.1 or newer
-  * https://go.dev/doc/install
+  * [Install Go](https://go.dev/doc/install)
 * **Postgres**
   * A postgres database is required. 
   * The database must be running prior to running the API server
   * see section *"Local Postgres local DB (optional)"*
 * Vercel CLI
-  * https://vercel.com/docs/cli
+  * [Vercel CLI docs](https://vercel.com/docs/cli)
   * Optional, unless you deploy to Vercel
 * Docker
   * Optional, unless you run a local Postgres DB
@@ -57,7 +57,7 @@ When the build completes, check for the binary file:
 `leaderboard-serverless`
 
 ### Local Postgres local DB (optional)
-The `<repo-folder>/docker-compose.yml` file will allow you to spin up Postgres with a database 
+The [`docker-compose.yml`](docker-compose.yml) file will allow you to spin up Postgres with a database 
 called `leaderboad` and user named `leaderboard` and password `leaderboard` **DO NOT USE THESE VALUES FOR PRODUCTION!**
 
 To run a local DB run the following docker command
@@ -141,15 +141,15 @@ go build && go test -p 1-v ./...
 
 Since we use an emebedded database for the entire test run between packages, test packages must be run one at a time (-p 1 flag). 
 
-See here for more: https://github.com/fergusstrange/embedded-postgres/issues/115
+See [embedded-postgres issue #115](https://github.com/fergusstrange/embedded-postgres/issues/115) for more details.
 
 ## Production
 
 Livepeer Inc hosts a version of this API to support the Livepeer Explorer Performance Leaderboard.
 
 ### Livepeer Inc's API
-- Production API: https://leaderboard-serverless.vercel.app/api/
-- Staging API: https://staging-leaderboard-serverless.vercel.app/api/
+- Production API: [leaderboard-serverless.vercel.app/api/](https://leaderboard-serverless.vercel.app/api/)
+- Staging API: [staging-leaderboard-serverless.vercel.app/api/](https://staging-leaderboard-serverless.vercel.app/api/)
 
 ## API Reference
 
@@ -182,7 +182,7 @@ These scripts must follow the naming convention of <migration_number>_descriptiv
 ```
 This example defines the eighth migration for the datbaase with two migrations, one to upgrade the database and one to revert it.  When the application starts its connection to the database, it will run all upgrade (or up) migrations automatically.
 
-Database migrations are found in the assets/migrations folder.  These are embeded in the golang binary built from this project for ease of access regardless of where the application is deployed.  This also allows Vercel to use these migrations.  The migrations are loaded and processed by the [golang-migrate](https://github.com/golang-migrate/migrate) project.  Please read their documentation for more details.
+Database migrations are found in [`assets/migrations`](assets/migrations). These are embeded in the golang binary built from this project for ease of access regardless of where the application is deployed.  This also allows Vercel to use these migrations.  The migrations are loaded and processed by the [golang-migrate](https://github.com/golang-migrate/migrate) project.  Please read their documentation for more details.
 
 ### Upgrading the database
 

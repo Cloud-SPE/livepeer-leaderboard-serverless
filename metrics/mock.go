@@ -20,16 +20,16 @@ func (m *MockStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.GPUMetr
 	if query.OrchestratorAddress != "" {
 		orchAddr = query.OrchestratorAddress
 	}
-	pipeline := "streamdiffusion-sdxl"
-	if query.Pipeline != "" {
-		pipeline = query.Pipeline
+	pipelineID := "streamdiffusion-sdxl"
+	if query.PipelineID != "" {
+		pipelineID = query.PipelineID
 	}
 	modelID := "streamdiffusion-sdxl"
 	if query.ModelID != "" {
 		modelID = query.ModelID
 	}
 
-	gpuName := "NVIDIA RTX 4090"
+	gpuModelName := "NVIDIA RTX 4090"
 	var gpuMemory uint64 = 24576
 	runnerVersion := "0.9.1"
 	cudaVersion := "12.4"
@@ -39,51 +39,52 @@ func (m *MockStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.GPUMetr
 		jitter := 0.45 + float64(i)*0.08
 		promptToFirstFrame := 120.5 + float64(i)*10.0
 		startupTimeMs := 250.0 + float64(i)*15.0
-		startupTimeS := startupTimeMs / 1000.0
 		e2eLatency := 350.0 + float64(i)*20.0
 		p95Prompt := float32(180.0 + float64(i)*12.0)
 		p95Startup := float32(400.0 + float64(i)*18.0)
 		p95E2E := float32(500.0 + float64(i)*25.0)
 
 		metrics = append(metrics, &models.GPUMetric{
-			WindowStart:         now.Add(-time.Duration(i) * time.Minute),
-			OrchestratorAddress: orchAddr,
-			Pipeline:            pipeline,
-			ModelID:             &modelID,
-			GPUID:               nilIfEmpty(query.GPUID),
-			Region:              nilIfEmpty(query.Region),
-			AvgOutputFPS:        14.67 - float64(i)*1.2,
-			P95OutputFPS:        float32(18.19 - float64(i)*1.0),
-			JitterCoeffFPS:      &jitter,
-			StatusSamples:       uint64(6 - i),
+			WindowStart:               now.Add(-time.Duration(i) * time.Minute),
+			OrchestratorAddress:       orchAddr,
+			PipelineID:                pipelineID,
+			ModelID:                   &modelID,
+			GPUID:                     nilIfEmpty(query.GPUID),
+			Region:                    nilIfEmpty(query.Region),
+			AvgOutputFPS:              14.67 - float64(i)*1.2,
+			P95OutputFPS:              float32(18.19 - float64(i)*1.0),
+			FPSJitterCoefficient:      &jitter,
+			StatusSamples:             uint64(6 - i),
+			SessionsEndingInError:     uint64(i % 2),
+			ErrorStatusSamples:        uint64(1 + i%2),
+			HealthSignalCoverageRatio: 0.95,
 
-			GPUName:        &gpuName,
-			GPUMemoryTotal: &gpuMemory,
-			RunnerVersion:  &runnerVersion,
-			CudaVersion:    &cudaVersion,
+			GPUModelName:        &gpuModelName,
+			GPUMemoryBytesTotal: &gpuMemory,
+			RunnerVersion:       &runnerVersion,
+			CudaVersion:         &cudaVersion,
 
-			PromptToFirstFrameMs:    &promptToFirstFrame,
-			StartupTimeMs:           &startupTimeMs,
-			StartupTimeS:            &startupTimeS,
-			E2ELatencyMs:            &e2eLatency,
-			P95PromptToFirstFrameMs: &p95Prompt,
-			P95StartupTimeMs:        &p95Startup,
-			P95E2ELatencyMs:         &p95E2E,
+			AvgPromptToFirstFrameMs:        &promptToFirstFrame,
+			AvgStartupLatencyMs:            &startupTimeMs,
+			AvgE2ELatencyMs:                &e2eLatency,
+			P95PromptToFirstFrameLatencyMs: &p95Prompt,
+			P95StartupLatencyMs:            &p95Startup,
+			P95E2ELatencyMs:                &p95E2E,
 
-			ValidPromptToFirstFrameCount: uint64(5 - i%5),
-			ValidStartupTimeCount:        uint64(5 - i%5),
-			ValidE2ELatencyCount:         uint64(5 - i%5),
+			PromptToFirstFrameSampleCount: uint64(5 - i%5),
+			StartupLatencySampleCount:     uint64(5 - i%5),
+			E2ELatencySampleCount:         uint64(5 - i%5),
 
-			KnownSessions:                      uint64(10 - i),
-			StartupSuccessSessions:             uint64(8 - i),
-			ExcusedSessions:                    1,
-			UnexcusedSessions:                  uint64(i % 2),
-			ConfirmedSwappedSessions:           uint64(i % 2),
-			InferredOrchestratorChangeSessions: uint64((i + 1) % 2),
-			SwappedSessions:                    uint64(i % 3),
+			KnownSessionsCount:       uint64(10 - i),
+			StartupSuccessSessions:   uint64(8 - i),
+			StartupExcusedSessions:   1,
+			StartupUnexcusedSessions: uint64(i % 2),
+			ConfirmedSwappedSessions: uint64(i % 2),
+			InferredSwapSessions:     uint64((i + 1) % 2),
+			TotalSwappedSessions:     uint64(i % 3),
 
-			FailureRate: float64(i%2) * 0.05,
-			SwapRate:    float64(i%3) * 0.03,
+			StartupUnexcusedRate: float64(i%2) * 0.05,
+			SwapRate:             float64(i%3) * 0.03,
 		})
 	}
 	return metrics, nil
@@ -100,9 +101,9 @@ func (m *MockStore) NetworkDemand(query *models.NetworkDemandQuery) ([]*models.N
 	if query.Gateway != "" {
 		gateway = query.Gateway
 	}
-	pipeline := "streamdiffusion-sdxl"
-	if query.Pipeline != "" {
-		pipeline = query.Pipeline
+	pipelineID := "streamdiffusion-sdxl"
+	if query.PipelineID != "" {
+		pipelineID = query.PipelineID
 	}
 	modelID := "streamdiffusion-sdxl"
 	if query.ModelID != "" {
@@ -112,26 +113,28 @@ func (m *MockStore) NetworkDemand(query *models.NetworkDemandQuery) ([]*models.N
 	rows := make([]*models.NetworkDemandRow, 0, 12)
 	for i := 11; i >= 0; i-- {
 		rows = append(rows, &models.NetworkDemandRow{
-			WindowStart:                        now.Add(-time.Duration(i) * interval),
-			Gateway:                            gateway,
-			Region:                             nilIfEmpty(query.Region),
-			Pipeline:                           pipeline,
-			ModelID:                            &modelID,
-			TotalSessions:                      uint64(3 + i),
-			TotalStreams:                       uint64(2 + i),
-			AvgOutputFPS:                       11.99 + float64(i)*0.5,
-			TotalInferenceMinutes:              45.5 + float64(i)*3.0,
-			KnownSessions:                      uint64(3 + i),
-			ServedSessions:                     uint64(2 + i),
-			UnservedSessions:                   1,
-			TotalDemandSessions:                uint64(4 + i),
-			UnexcusedSessions:                  uint64(i % 2),
-			ConfirmedSwappedSessions:           uint64(i % 2),
-			InferredOrchestratorChangeSessions: uint64((i + 1) % 2),
-			SwappedSessions:                    uint64(i % 3),
-			MissingCapacityCount:               uint64(i % 2),
-			SuccessRatio:                       0.92 + float64(i)*0.005,
-			FeePaymentEth:                      0.0025 + float64(i)*0.0003,
+			WindowStart:               now.Add(-time.Duration(i) * interval),
+			Gateway:                   gateway,
+			Region:                    nilIfEmpty(query.Region),
+			PipelineID:                pipelineID,
+			ModelID:                   &modelID,
+			SessionsCount:             uint64(3 + i),
+			AvgOutputFPS:              11.99 + float64(i)*0.5,
+			TotalMinutes:              45.5 + float64(i)*3.0,
+			KnownSessionsCount:        uint64(3 + i),
+			ServedSessions:            uint64(2 + i),
+			UnservedSessions:          1,
+			TotalDemandSessions:       uint64(4 + i),
+			StartupUnexcusedSessions:  uint64(i % 2),
+			ConfirmedSwappedSessions:  uint64(i % 2),
+			InferredSwapSessions:      uint64((i + 1) % 2),
+			TotalSwappedSessions:      uint64(i % 3),
+			SessionsEndingInError:     uint64(i % 2),
+			ErrorStatusSamples:        uint64(1 + i%2),
+			HealthSignalCoverageRatio: 0.95,
+			StartupSuccessRate:        0.95 + float64(i)*0.002,
+			EffectiveSuccessRate:      0.92 + float64(i)*0.005,
+			TicketFaceValueEth:        0.0025 + float64(i)*0.0003,
 		})
 	}
 	return rows, nil
@@ -148,12 +151,13 @@ func (m *MockStore) SLACompliance(query *models.SLAComplianceQuery) ([]*models.S
 	if query.OrchestratorAddress != "" {
 		orchAddr = query.OrchestratorAddress
 	}
-	pipeline := "streamdiffusion-sdxl"
-	if query.Pipeline != "" {
-		pipeline = query.Pipeline
+	pipelineID := "streamdiffusion-sdxl"
+	if query.PipelineID != "" {
+		pipelineID = query.PipelineID
 	}
 
 	successRatio := 1.0
+	startupSuccessRatio := 1.0
 	noSwapRatio := 0.75
 	slaScore := 0.95
 	gpuID := "GPU-3f93b3ef-7ea7-4480-aa80-75d59014fb74"
@@ -167,22 +171,26 @@ func (m *MockStore) SLACompliance(query *models.SLAComplianceQuery) ([]*models.S
 
 	rows := []*models.SLAComplianceRow{
 		{
-			WindowStart:                        now.Add(-period),
-			OrchestratorAddress:                orchAddr,
-			Pipeline:                           pipeline,
-			ModelID:                            &modelID,
-			GPUID:                              &gpuID,
-			Region:                             nilIfEmpty(query.Region),
-			KnownSessions:                      4,
-			StartupSuccessSessions:             3,
-			ExcusedSessions:                    1,
-			UnexcusedSessions:                  0,
-			ConfirmedSwappedSessions:           1,
-			InferredOrchestratorChangeSessions: 0,
-			SwappedSessions:                    1,
-			SuccessRatio:                       &successRatio,
-			NoSwapRatio:                        &noSwapRatio,
-			SLAScore:                           &slaScore,
+			WindowStart:               now.Add(-period),
+			OrchestratorAddress:       orchAddr,
+			PipelineID:                pipelineID,
+			ModelID:                   &modelID,
+			GPUID:                     &gpuID,
+			Region:                    nilIfEmpty(query.Region),
+			KnownSessionsCount:        4,
+			StartupSuccessSessions:    3,
+			StartupExcusedSessions:    1,
+			StartupUnexcusedSessions:  0,
+			ConfirmedSwappedSessions:  1,
+			InferredSwapSessions:      0,
+			TotalSwappedSessions:      1,
+			SessionsEndingInError:     0,
+			ErrorStatusSamples:        1,
+			HealthSignalCoverageRatio: 1.0,
+			StartupSuccessRate:        &startupSuccessRatio,
+			EffectiveSuccessRate:      &successRatio,
+			NoSwapRate:                &noSwapRatio,
+			SLAScore:                  &slaScore,
 		},
 	}
 	return rows, nil

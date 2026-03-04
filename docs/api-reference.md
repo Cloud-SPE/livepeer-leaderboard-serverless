@@ -5,9 +5,9 @@ All APIs start with `/api/`
 ### ClickHouse Platform Metrics APIs
 
 These endpoints are backed by ClickHouse views:
-- `/api/gpu/metrics` -> `v_api_gpu_metrics`
-- `/api/network/demand` -> `v_api_network_demand`
-- `/api/sla/compliance` -> `v_api_sla_compliance`
+- [`/api/gpu/metrics`](#get-apigpumetrics) -> `v_api_gpu_metrics`
+- [`/api/network/demand`](#get-apinetworkdemand) -> `v_api_network_demand`
+- [`/api/sla/compliance`](#get-apislacompliance) -> `v_api_sla_compliance`
 
 #### `GET /api/gpu/metrics`
 
@@ -15,11 +15,11 @@ These endpoints are backed by ClickHouse views:
 |---|---|
 | `time_range` | Duration window to query. Default is `1h`, minimum is `1m`, maximum is `24h`. |
 | `orchestrator_address` | Optional orchestrator address filter. |
-| `pipeline` | Optional pipeline filter. |
+| `pipeline_id` | Optional pipeline filter. |
 | `model_id` | Optional model filter. |
 | `gpu_id` | Optional GPU ID filter. |
 | `region` | Optional region filter. |
-| `gpu_name` | Optional GPU name filter. |
+| `gpu_model_name` | Optional GPU model filter. |
 | `runner_version` | Optional runner version filter. |
 | `cuda_version` | Optional CUDA version filter. |
 
@@ -27,17 +27,17 @@ Response payload shape: `{ "metrics": [ ... ] }`
 
 | Field Group | Fields |
 |---|---|
-| Keys/Dimensions | `window_start`, `orchestrator_address`, `pipeline`, `model_id`, `gpu_id`, `region`, `gpu_name`, `gpu_memory_total`, `runner_version`, `cuda_version` |
-| Performance/Latency | `avg_output_fps`, `p95_output_fps`, `jitter_coeff_fps`, `prompt_to_first_frame_ms`, `startup_time_ms`, `startup_time_s`, `e2e_latency_ms`, `p95_prompt_to_first_frame_ms`, `p95_startup_time_ms`, `p95_e2e_latency_ms` |
-| Valid Counts | `valid_prompt_to_first_frame_count`, `valid_startup_time_count`, `valid_e2e_latency_count`, `status_samples` |
-| Reliability | `known_sessions`, `startup_success_sessions`, `excused_sessions`, `unexcused_sessions`, `confirmed_swapped_sessions`, `inferred_orchestrator_change_sessions`, `swapped_sessions` |
-| Rates | `failure_rate`, `swap_rate` |
+| Keys/Dimensions | `window_start`, `orchestrator_address`, `pipeline_id`, `model_id`, `gpu_id`, `region`, `gpu_model_name`, `gpu_memory_bytes_total`, `runner_version`, `cuda_version` |
+| Performance/Latency | `avg_output_fps`, `p95_output_fps`, `fps_jitter_coefficient`, `avg_prompt_to_first_frame_ms`, `avg_startup_latency_ms`, `avg_e2e_latency_ms`, `p95_prompt_to_first_frame_latency_ms`, `p95_startup_latency_ms`, `p95_e2e_latency_ms` |
+| Valid Counts | `prompt_to_first_frame_sample_count`, `startup_latency_sample_count`, `e2e_latency_sample_count`, `status_samples`, `error_status_samples` |
+| Reliability | `known_sessions_count`, `startup_success_sessions`, `startup_excused_sessions`, `startup_unexcused_sessions`, `confirmed_swapped_sessions`, `inferred_swap_sessions`, `total_swapped_sessions`, `sessions_ending_in_error`, `health_signal_coverage_ratio` |
+| Rates | `startup_unexcused_rate`, `swap_rate` |
 
 Contract notes:
-- Grain: one row per `(window_start hour, orchestrator_address, pipeline, model_id, gpu_id, region)`.
-- `swapped_sessions` is the union of `confirmed_swapped_sessions` and `inferred_orchestrator_change_sessions`.
-- `failure_rate = unexcused_sessions / known_sessions` (returns `0` when denominator is `0`).
-- `swap_rate = swapped_sessions / known_sessions` (returns `0` when denominator is `0`).
+- Grain: one row per `(window_start hour, orchestrator_address, pipeline_id, model_id, gpu_id, region)`.
+- `total_swapped_sessions` is the union of `confirmed_swapped_sessions` and `inferred_swap_sessions`.
+- `startup_unexcused_rate = startup_unexcused_sessions / known_sessions_count` (returns `0` when denominator is `0`).
+- `swap_rate = total_swapped_sessions / known_sessions_count` (returns `0` when denominator is `0`).
 - Latency fields are nullable and may be `null` when no valid samples exist for the bucket.
 
 #### `GET /api/network/demand`
@@ -47,24 +47,24 @@ Contract notes:
 | `interval` | Aggregation interval duration. Default is `15m`, minimum is `1m`, maximum is `24h`. |
 | `gateway` | Optional gateway filter. |
 | `region` | Optional region filter. |
-| `pipeline` | Optional pipeline filter. |
+| `pipeline_id` | Optional pipeline filter. |
 | `model_id` | Optional model filter. |
 
 Response payload shape: `{ "demand": [ ... ] }`
 
 | Field Group | Fields |
 |---|---|
-| Keys/Dimensions | `window_start`, `gateway`, `region`, `pipeline`, `model_id` |
-| Demand/Capacity | `total_sessions`, `total_streams`, `total_inference_minutes`, `known_sessions`, `served_sessions`, `unserved_sessions`, `total_demand_sessions`, `missing_capacity_count` |
-| Reliability | `unexcused_sessions`, `confirmed_swapped_sessions`, `inferred_orchestrator_change_sessions`, `swapped_sessions`, `success_ratio` |
-| Economics | `fee_payment_eth` |
+| Keys/Dimensions | `window_start`, `gateway`, `region`, `pipeline_id`, `model_id` |
+| Demand/Capacity | `sessions_count`, `total_minutes`, `known_sessions_count`, `served_sessions`, `unserved_sessions`, `total_demand_sessions` |
+| Reliability | `startup_unexcused_sessions`, `confirmed_swapped_sessions`, `inferred_swap_sessions`, `total_swapped_sessions`, `sessions_ending_in_error`, `error_status_samples`, `health_signal_coverage_ratio`, `startup_success_rate`, `effective_success_rate` |
+| Economics | `ticket_face_value_eth` |
 
 Contract notes:
-- Grain: one row per `(window_start hour, gateway, region, pipeline, model_id)`.
+- Grain: one row per `(window_start hour, gateway, region, pipeline_id, model_id)`.
 - `total_demand_sessions = served_sessions + unserved_sessions`.
-- `missing_capacity_count` is a capacity proxy and tracks unserved demand.
-- `swapped_sessions` is the union of `confirmed_swapped_sessions` and `inferred_orchestrator_change_sessions`.
-- `success_ratio = 1 - (unexcused_sessions / known_sessions)` (returns `0` when denominator is `0`).
+- `total_swapped_sessions` is the union of `confirmed_swapped_sessions` and `inferred_swap_sessions`.
+- `startup_success_rate` is startup-only success and tracks startup contract reliability.
+- `effective_success_rate` is effective output viability (not startup-only) and can include startup-unexcused and no-output behaviors.
 
 #### `GET /api/sla/compliance`
 
@@ -72,7 +72,7 @@ Contract notes:
 |---|---|
 | `period` | Duration window to query. Default is `24h`, minimum is `1h`, maximum is `30d`. |
 | `orchestrator_address` | Optional orchestrator address filter. |
-| `pipeline` | Optional pipeline filter. |
+| `pipeline_id` | Optional pipeline filter. |
 | `model_id` | Optional model filter. |
 | `gpu_id` | Optional GPU ID filter. |
 | `region` | Optional region filter. |
@@ -81,16 +81,21 @@ Response payload shape: `{ "compliance": [ ... ] }`
 
 | Field Group | Fields |
 |---|---|
-| Keys/Dimensions | `window_start`, `orchestrator_address`, `pipeline`, `model_id`, `gpu_id`, `region` |
-| Reliability | `known_sessions`, `startup_success_sessions`, `excused_sessions`, `unexcused_sessions`, `confirmed_swapped_sessions`, `inferred_orchestrator_change_sessions`, `swapped_sessions` |
-| SLA Scores | `success_ratio`, `no_swap_ratio`, `sla_score` |
+| Keys/Dimensions | `window_start`, `orchestrator_address`, `pipeline_id`, `model_id`, `gpu_id`, `region` |
+| Reliability | `known_sessions_count`, `startup_success_sessions`, `startup_excused_sessions`, `startup_unexcused_sessions`, `confirmed_swapped_sessions`, `inferred_swap_sessions`, `total_swapped_sessions`, `sessions_ending_in_error`, `error_status_samples`, `health_signal_coverage_ratio`, `startup_success_rate` |
+| SLA Scores | `effective_success_rate`, `no_swap_rate`, `sla_score` |
 
 Contract notes:
-- Grain: one row per attributed `(window_start hour, orchestrator_address, pipeline, model_id, gpu_id, region)`.
-- `swapped_sessions` is the union of `confirmed_swapped_sessions` and `inferred_orchestrator_change_sessions`.
-- `success_ratio = 1 - (unexcused_sessions / known_sessions)` (returns `0` when denominator is `0`).
-- `no_swap_ratio = 1 - (swapped_sessions / known_sessions)` (returns `0` when denominator is `0`).
-- `sla_score = (0.7 * success_ratio + 0.3 * no_swap_ratio) * 100`.
+- Grain: one row per attributed `(window_start hour, orchestrator_address, pipeline_id, model_id, gpu_id, region)`.
+- `total_swapped_sessions` is the union of `confirmed_swapped_sessions` and `inferred_swap_sessions`.
+- `startup_success_rate` is startup-only success and should be used for startup SLA interpretation.
+- `effective_success_rate` is effective output viability aligned with demand semantics.
+- `no_swap_rate = 1 - (total_swapped_sessions / known_sessions_count)` (returns `0` when denominator is `0`).
+- `sla_score` weighting is defined by the upstream view contract and may change with metric hardening.
+- Tail artifact suppression is stricter for true rollover cleanup hours, while same-hour failed/no-output sessions are retained for observability.
+
+GPU row behavior note:
+- True rollover tail artifacts are filtered using current-hour + previous-hour no-work guards; same-hour failed/no-output attempts are retained.
 
 #### `GET /api/aggregated_stats?orchestrator=<orchAddr>&region=<region_code>&since=<timestamp>&until=<timestamp>`
 
@@ -132,7 +137,7 @@ Contract notes:
 
 #### AI Request 
 
-This is similar to the above `aggregated_stats` requests with the added parameters documented below.
+This is similar to [`GET /api/aggregated_stats?orchestrator=<orchAddr>&region=<region_code>&since=<timestamp>&until=<timestamp>`](#get-apiaggregated_statsorchestratororchaddrregionregion_codesincetimestampuntiltimestamp), with the added parameters documented below.
 
 #### `GET /api/aggregated_stats?orchestrator=<orchAddr>&region=<region_code>&since=<timestamp>&until=<timestamp>&model=<model>&pipeline=<pipeline>`
 
@@ -201,14 +206,14 @@ For each region return an array of the metrics from the 'metrics gathering' sect
 
 #### AI Request 
 
-This is similar to the above `raw_stats` requests with the added parameters documented below.
+This is similar to [`GET /api/raw_stats?orchestrator=<orchAddr>&region=<region_code>&since=<timestamp>`](#get-apiraw_statsorchestratororchaddrregionregion_codesincetimestamp), with the added parameters documented below.
 
 #### `GET /api/raw_stats?orchestrator=<orchAddr>&region=<region_code>&since=<timestamp>&until=<timestamp>&model=<model>&pipeline=<pipeline>`
 
 | Parameter         | Description                                                                                                                               |
 |-------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
 | `model`           | The model to check stats for. Model is an optional field.                                                                                 |
-| `pipeline`        | The pipeline to check stats for. Pipeline is a required field. If pipeline is not provided, you will get Transcoding data (see raw_stats for Transcoding). |
+| `pipeline`        | The pipeline to check stats for. Pipeline is a required field. If pipeline is not provided, the request falls back to the Transcoding behavior described above. |
 
 #### AI Response 
 

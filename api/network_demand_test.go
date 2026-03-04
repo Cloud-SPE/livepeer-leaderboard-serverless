@@ -13,7 +13,7 @@ import (
 func TestNetworkDemandHandler(t *testing.T) {
 	metrics.SetStore(metrics.NewMockStore())
 
-	req, err := http.NewRequest("GET", "/network/demand?gateway=cloud-spe-ai-live-video-tester-mdw&pipeline=streamdiffusion-sdxl&model_id=streamdiffusion-sdxl&interval=15m", nil)
+	req, err := http.NewRequest("GET", "/network/demand?gateway=cloud-spe-ai-live-video-tester-mdw&pipeline_id=streamdiffusion-sdxl&model_id=streamdiffusion-sdxl&interval=15m", nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
@@ -38,23 +38,32 @@ func TestNetworkDemandHandler(t *testing.T) {
 	if rows[0].Gateway != "cloud-spe-ai-live-video-tester-mdw" {
 		t.Fatalf("Expected gateway to match query, got %s", rows[0].Gateway)
 	}
-	if rows[0].Pipeline != "streamdiffusion-sdxl" {
-		t.Fatalf("Expected pipeline to match query, got %s", rows[0].Pipeline)
+	if rows[0].PipelineID != "streamdiffusion-sdxl" {
+		t.Fatalf("Expected pipeline_id to match query, got %s", rows[0].PipelineID)
 	}
 	if rows[0].ModelID == nil || *rows[0].ModelID != "streamdiffusion-sdxl" {
 		t.Fatalf("Expected model_id to match query, got %+v", rows[0].ModelID)
 	}
-	if rows[0].TotalSessions == 0 {
-		t.Fatalf("Expected total_sessions to be non-zero")
+	if rows[0].SessionsCount == 0 {
+		t.Fatalf("Expected sessions_count to be non-zero")
 	}
-	if rows[0].TotalStreams == 0 {
-		t.Fatalf("Expected total_streams to be non-zero")
+	if rows[0].TotalMinutes == 0 {
+		t.Fatalf("Expected total_minutes to be non-zero")
 	}
-	if rows[0].SuccessRatio == 0 {
-		t.Fatalf("Expected success_ratio to be non-zero")
+	if rows[0].StartupSuccessRate == 0 {
+		t.Fatalf("Expected startup_success_rate to be non-zero")
 	}
-	if rows[0].ConfirmedSwappedSessions+rows[0].InferredOrchestratorChangeSessions == 0 {
+	if rows[0].EffectiveSuccessRate == 0 {
+		t.Fatalf("Expected effective_success_rate to be non-zero")
+	}
+	if rows[0].ConfirmedSwappedSessions+rows[0].InferredSwapSessions == 0 {
 		t.Fatalf("Expected swapped session breakdown counters to be populated")
+	}
+	if rows[0].ErrorStatusSamples == 0 {
+		t.Fatalf("Expected error_status_samples to be populated")
+	}
+	if rows[0].HealthSignalCoverageRatio == 0 {
+		t.Fatalf("Expected health_signal_coverage_ratio to be populated")
 	}
 }
 
