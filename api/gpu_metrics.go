@@ -70,6 +70,12 @@ func GPUMetricsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	page, pageSize, err := common.ParsePageParams(r)
+	if err != nil {
+		common.HandleBadRequest(w, err)
+		return
+	}
+
 	query := &models.GPUMetricsQuery{
 		OrchestratorAddress: orchAddr,
 		GPUID:               gpuID,
@@ -80,15 +86,26 @@ func GPUMetricsHandler(w http.ResponseWriter, r *http.Request) {
 		RunnerVersion:       runnerVersion,
 		CudaVersion:         cudaVersion,
 		TimeRange:           timeRange,
+		Pagination:          models.Pagination{Page: page, PageSize: pageSize},
 	}
 
 	common.Logger.Debug("GPUMetricsHandler query=%+v store=%T", query, metrics.Store)
+	totalCount, err := metrics.Store.GPUMetricsCount(query)
+	if err != nil {
+		common.HandleInternalError(w, err)
+		return
+	}
 	results, err := metrics.Store.GPUMetrics(query)
 	if err != nil {
 		common.HandleInternalError(w, err)
 		return
 	}
-	resultsEncoded, err := json.Marshal(map[string][]*models.GPUMetric{"metrics": results})
+	query.Pagination.TotalCount = totalCount
+	query.Pagination.TotalPages = (totalCount + query.Pagination.PageSize - 1) / query.Pagination.PageSize
+	resultsEncoded, err := json.Marshal(map[string]interface{}{
+		"metrics":    results,
+		"pagination": query.Pagination,
+	})
 	if err != nil {
 		common.HandleInternalError(w, err)
 		return

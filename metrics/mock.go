@@ -90,6 +90,10 @@ func (m *MockStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.GPUMetr
 	return metrics, nil
 }
 
+func (m *MockStore) GPUMetricsCount(_ *models.GPUMetricsQuery) (int, error) {
+	return 6, nil
+}
+
 func (m *MockStore) NetworkDemand(query *models.NetworkDemandQuery) ([]*models.NetworkDemandRow, error) {
 	now := time.Now().UTC()
 	interval := query.Interval
@@ -138,6 +142,10 @@ func (m *MockStore) NetworkDemand(query *models.NetworkDemandQuery) ([]*models.N
 		})
 	}
 	return rows, nil
+}
+
+func (m *MockStore) NetworkDemandCount(_ *models.NetworkDemandQuery) (int, error) {
+	return 12, nil
 }
 
 func (m *MockStore) SLACompliance(query *models.SLAComplianceQuery) ([]*models.SLAComplianceRow, error) {
@@ -194,6 +202,10 @@ func (m *MockStore) SLACompliance(query *models.SLAComplianceQuery) ([]*models.S
 		},
 	}
 	return rows, nil
+}
+
+func (m *MockStore) SLAComplianceCount(_ *models.SLAComplianceQuery) (int, error) {
+	return 1, nil
 }
 
 func (m *MockStore) Datasets(query *models.DatasetsQuery) ([]*models.Dataset, error) {

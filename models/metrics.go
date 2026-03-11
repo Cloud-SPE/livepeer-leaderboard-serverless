@@ -2,6 +2,14 @@ package models
 
 import "time"
 
+// Pagination holds page-based pagination parameters and response metadata.
+type Pagination struct {
+	Page       int `json:"page"`
+	PageSize   int `json:"page_size"`
+	TotalCount int `json:"total_count"`
+	TotalPages int `json:"total_pages"`
+}
+
 // --- GPU Metrics (v_api_gpu_metrics) ---
 
 type GPUMetricsQuery struct {
@@ -14,6 +22,7 @@ type GPUMetricsQuery struct {
 	RunnerVersion       string
 	CudaVersion         string
 	TimeRange           time.Duration
+	Pagination          Pagination
 }
 
 type GPUMetric struct {
@@ -72,6 +81,7 @@ type NetworkDemandQuery struct {
 	PipelineID string
 	ModelID    string
 	Interval   time.Duration
+	Pagination Pagination
 }
 
 type NetworkDemandRow struct {
@@ -108,6 +118,7 @@ type SLAComplianceQuery struct {
 	ModelID             string
 	GPUID               string
 	Period              time.Duration
+	Pagination          Pagination
 }
 
 type SLAComplianceRow struct {

@@ -6,8 +6,11 @@ import (
 
 type MetricsStore interface {
 	GPUMetrics(query *models.GPUMetricsQuery) ([]*models.GPUMetric, error)
+	GPUMetricsCount(query *models.GPUMetricsQuery) (int, error)
 	NetworkDemand(query *models.NetworkDemandQuery) ([]*models.NetworkDemandRow, error)
+	NetworkDemandCount(query *models.NetworkDemandQuery) (int, error)
 	SLACompliance(query *models.SLAComplianceQuery) ([]*models.SLAComplianceRow, error)
+	SLAComplianceCount(query *models.SLAComplianceQuery) (int, error)
 	Datasets(query *models.DatasetsQuery) ([]*models.Dataset, error)
 }
 

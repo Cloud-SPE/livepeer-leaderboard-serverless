@@ -26,12 +26,15 @@ func TestSLAComplianceHandler(t *testing.T) {
 		t.Fatalf("Handler returned wrong status code: got %v want %v, body: %s", rr.Code, http.StatusOK, rr.Body.String())
 	}
 
-	var payload map[string][]models.SLAComplianceRow
+	var payload struct {
+		Compliance []models.SLAComplianceRow `json:"compliance"`
+		Pagination models.Pagination         `json:"pagination"`
+	}
 	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}
 
-	rows := payload["compliance"]
+	rows := payload.Compliance
 	if len(rows) < 1 {
 		t.Fatalf("Expected at least one compliance row, got %d", len(rows))
 	}
@@ -62,6 +65,20 @@ func TestSLAComplianceHandler(t *testing.T) {
 	if rows[0].HealthSignalCoverageRatio == 0 {
 		t.Fatalf("Expected health_signal_coverage_ratio to be populated")
 	}
+
+	// Pagination metadata assertions
+	if payload.Pagination.Page != 1 {
+		t.Fatalf("Expected default page 1, got %d", payload.Pagination.Page)
+	}
+	if payload.Pagination.PageSize != 50 {
+		t.Fatalf("Expected default page_size 50, got %d", payload.Pagination.PageSize)
+	}
+	if payload.Pagination.TotalCount < 1 {
+		t.Fatalf("Expected total_count >= 1, got %d", payload.Pagination.TotalCount)
+	}
+	if payload.Pagination.TotalPages < 1 {
+		t.Fatalf("Expected total_pages >= 1, got %d", payload.Pagination.TotalPages)
+	}
 }
 
 func TestSLAComplianceHandler_ValidationRejectsBadPeriod(t *testing.T) {
@@ -78,5 +95,39 @@ func TestSLAComplianceHandler_ValidationRejectsBadPeriod(t *testing.T) {
 
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("Expected 400 for period below 1h, got %v", rr.Code)
+	}
+}
+
+func TestSLAComplianceHandler_PaginationRejectsInvalidPage(t *testing.T) {
+	metrics.SetStore(metrics.NewMockStore())
+
+	req, err := http.NewRequest("GET", "/sla/compliance?page=0", nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(SLAComplianceHandler)
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("Expected 400 for page=0, got %v", rr.Code)
+	}
+}
+
+func TestSLAComplianceHandler_PaginationRejectsInvalidPageSize(t *testing.T) {
+	metrics.SetStore(metrics.NewMockStore())
+
+	req, err := http.NewRequest("GET", "/sla/compliance?page_size=501", nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(SLAComplianceHandler)
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("Expected 400 for page_size=501, got %v", rr.Code)
 	}
 }

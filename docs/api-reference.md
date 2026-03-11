@@ -22,8 +22,21 @@ These endpoints are backed by ClickHouse views:
 | `gpu_model_name` | Optional GPU model filter. |
 | `runner_version` | Optional runner version filter. |
 | `cuda_version` | Optional CUDA version filter. |
+| `page` | Page number (1-indexed). Default is `1`. |
+| `page_size` | Number of rows per page. Default is `50`, maximum is `500`. |
 
-Response payload shape: `{ "metrics": [ ... ] }`
+Response payload shape:
+```json
+{
+  "metrics": [ ... ],
+  "pagination": {
+    "page": 1,
+    "page_size": 50,
+    "total_count": 342,
+    "total_pages": 7
+  }
+}
+```
 
 | Field Group | Fields |
 |---|---|
@@ -49,8 +62,21 @@ Contract notes:
 | `region` | Optional region filter. |
 | `pipeline_id` | Optional pipeline filter. |
 | `model_id` | Optional model filter. |
+| `page` | Page number (1-indexed). Default is `1`. |
+| `page_size` | Number of rows per page. Default is `50`, maximum is `500`. |
 
-Response payload shape: `{ "demand": [ ... ] }`
+Response payload shape:
+```json
+{
+  "demand": [ ... ],
+  "pagination": {
+    "page": 1,
+    "page_size": 50,
+    "total_count": 342,
+    "total_pages": 7
+  }
+}
+```
 
 | Field Group | Fields |
 |---|---|
@@ -76,8 +102,21 @@ Contract notes:
 | `model_id` | Optional model filter. |
 | `gpu_id` | Optional GPU ID filter. |
 | `region` | Optional region filter. |
+| `page` | Page number (1-indexed). Default is `1`. |
+| `page_size` | Number of rows per page. Default is `50`, maximum is `500`. |
 
-Response payload shape: `{ "compliance": [ ... ] }`
+Response payload shape:
+```json
+{
+  "compliance": [ ... ],
+  "pagination": {
+    "page": 1,
+    "page_size": 50,
+    "total_count": 342,
+    "total_pages": 7
+  }
+}
+```
 
 | Field Group | Fields |
 |---|---|

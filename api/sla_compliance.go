@@ -55,6 +55,12 @@ func SLAComplianceHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	page, pageSize, err := common.ParsePageParams(r)
+	if err != nil {
+		common.HandleBadRequest(w, err)
+		return
+	}
+
 	query := &models.SLAComplianceQuery{
 		OrchestratorAddress: orchAddr,
 		Region:              region,
@@ -62,15 +68,26 @@ func SLAComplianceHandler(w http.ResponseWriter, r *http.Request) {
 		ModelID:             modelID,
 		GPUID:               gpuID,
 		Period:              period,
+		Pagination:          models.Pagination{Page: page, PageSize: pageSize},
 	}
 
 	common.Logger.Debug("SLAComplianceHandler query=%+v store=%T", query, metrics.Store)
+	totalCount, err := metrics.Store.SLAComplianceCount(query)
+	if err != nil {
+		common.HandleInternalError(w, err)
+		return
+	}
 	results, err := metrics.Store.SLACompliance(query)
 	if err != nil {
 		common.HandleInternalError(w, err)
 		return
 	}
-	resultsEncoded, err := json.Marshal(map[string][]*models.SLAComplianceRow{"compliance": results})
+	query.Pagination.TotalCount = totalCount
+	query.Pagination.TotalPages = (totalCount + query.Pagination.PageSize - 1) / query.Pagination.PageSize
+	resultsEncoded, err := json.Marshal(map[string]interface{}{
+		"compliance": results,
+		"pagination": query.Pagination,
+	})
 	if err != nil {
 		common.HandleInternalError(w, err)
 		return

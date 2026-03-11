@@ -26,12 +26,15 @@ func TestNetworkDemandHandler(t *testing.T) {
 		t.Fatalf("Handler returned wrong status code: got %v want %v, body: %s", rr.Code, http.StatusOK, rr.Body.String())
 	}
 
-	var payload map[string][]models.NetworkDemandRow
+	var payload struct {
+		Demand     []models.NetworkDemandRow `json:"demand"`
+		Pagination models.Pagination         `json:"pagination"`
+	}
 	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}
 
-	rows := payload["demand"]
+	rows := payload.Demand
 	if len(rows) < 2 {
 		t.Fatalf("Expected more than one row, got %d", len(rows))
 	}
@@ -65,6 +68,20 @@ func TestNetworkDemandHandler(t *testing.T) {
 	if rows[0].HealthSignalCoverageRatio == 0 {
 		t.Fatalf("Expected health_signal_coverage_ratio to be populated")
 	}
+
+	// Pagination metadata assertions
+	if payload.Pagination.Page != 1 {
+		t.Fatalf("Expected default page 1, got %d", payload.Pagination.Page)
+	}
+	if payload.Pagination.PageSize != 50 {
+		t.Fatalf("Expected default page_size 50, got %d", payload.Pagination.PageSize)
+	}
+	if payload.Pagination.TotalCount < 1 {
+		t.Fatalf("Expected total_count >= 1, got %d", payload.Pagination.TotalCount)
+	}
+	if payload.Pagination.TotalPages < 1 {
+		t.Fatalf("Expected total_pages >= 1, got %d", payload.Pagination.TotalPages)
+	}
 }
 
 func TestNetworkDemandHandler_ValidationRejectsBadDuration(t *testing.T) {
@@ -81,5 +98,39 @@ func TestNetworkDemandHandler_ValidationRejectsBadDuration(t *testing.T) {
 
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("Expected 400 for out-of-range interval, got %v", rr.Code)
+	}
+}
+
+func TestNetworkDemandHandler_PaginationRejectsInvalidPage(t *testing.T) {
+	metrics.SetStore(metrics.NewMockStore())
+
+	req, err := http.NewRequest("GET", "/network/demand?page=0", nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(NetworkDemandHandler)
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("Expected 400 for page=0, got %v", rr.Code)
+	}
+}
+
+func TestNetworkDemandHandler_PaginationRejectsInvalidPageSize(t *testing.T) {
+	metrics.SetStore(metrics.NewMockStore())
+
+	req, err := http.NewRequest("GET", "/network/demand?page_size=501", nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(NetworkDemandHandler)
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("Expected 400 for page_size=501, got %v", rr.Code)
 	}
 }

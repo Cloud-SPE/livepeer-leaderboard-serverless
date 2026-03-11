@@ -49,21 +49,38 @@ func NetworkDemandHandler(w http.ResponseWriter, r *http.Request) {
 		common.HandleBadRequest(w, err)
 		return
 	}
+	page, pageSize, err := common.ParsePageParams(r)
+	if err != nil {
+		common.HandleBadRequest(w, err)
+		return
+	}
+
 	query := &models.NetworkDemandQuery{
 		Gateway:    gateway,
 		Region:     region,
 		PipelineID: pipelineID,
 		ModelID:    modelID,
 		Interval:   interval,
+		Pagination: models.Pagination{Page: page, PageSize: pageSize},
 	}
 
 	common.Logger.Debug("NetworkDemandHandler query=%+v store=%T", query, metrics.Store)
+	totalCount, err := metrics.Store.NetworkDemandCount(query)
+	if err != nil {
+		common.HandleInternalError(w, err)
+		return
+	}
 	results, err := metrics.Store.NetworkDemand(query)
 	if err != nil {
 		common.HandleInternalError(w, err)
 		return
 	}
-	resultsEncoded, err := json.Marshal(map[string][]*models.NetworkDemandRow{"demand": results})
+	query.Pagination.TotalCount = totalCount
+	query.Pagination.TotalPages = (totalCount + query.Pagination.PageSize - 1) / query.Pagination.PageSize
+	resultsEncoded, err := json.Marshal(map[string]interface{}{
+		"demand":     results,
+		"pagination": query.Pagination,
+	})
 	if err != nil {
 		common.HandleInternalError(w, err)
 		return

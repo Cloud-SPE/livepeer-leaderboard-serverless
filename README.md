@@ -90,6 +90,17 @@ When configuring the API Server, you will use the following environment variable
 * `PIPELINES_CACHE_TIMEOUT` - The timeout for the application to cache pipelines before retrieving them from the database.  The default is 60 seconds.
 * `CATALYST_REGION_URL` - A custom URL point to the Catlyst JSON representing regions to be inserted into the database.
 
+#### ClickHouse (required for platform metrics endpoints)
+
+The `/api/gpu/metrics`, `/api/network/demand`, and `/api/sla/compliance` endpoints are backed by ClickHouse. These environment variables must be set for those endpoints to return data.
+
+* `CLICKHOUSE_HOST` - ClickHouse server hostname. Default is `localhost`.
+* `CLICKHOUSE_PORT` - ClickHouse server port. Default is `8123`.
+* `CLICKHOUSE_DB` - ClickHouse database name. Default is `livepeer_analytics`.
+* `CLICKHOUSE_USER` - ClickHouse username. Default is `analytics_user`.
+* `CLICKHOUSE_PASS` - ClickHouse password. Default is `analytics_password`.
+* `CLICKHOUSE_PROTOCOL` - ClickHouse connection protocol (`http` or `native`). Default is `http`.
+
 ### Run the App
 
 Next, execute the `leaderboard-serverless` binary

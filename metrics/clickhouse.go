@@ -118,7 +118,16 @@ func (s *ClickhouseStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.G
 		args = append(args, query.CudaVersion)
 	}
 
-	sqlQuery += " ORDER BY window_start DESC LIMIT 200"
+	pageSize := query.Pagination.PageSize
+	if pageSize <= 0 {
+		pageSize = 50
+	}
+	offset := (query.Pagination.Page - 1) * pageSize
+	if offset < 0 {
+		offset = 0
+	}
+	sqlQuery += " ORDER BY window_start DESC LIMIT ? OFFSET ?"
+	args = append(args, pageSize, offset)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -190,6 +199,64 @@ func (s *ClickhouseStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.G
 	return results, nil
 }
 
+func (s *ClickhouseStore) GPUMetricsCount(query *models.GPUMetricsQuery) (int, error) {
+	if query == nil {
+		return 0, errors.New("gpu metrics query cannot be nil")
+	}
+
+	end := time.Now().UTC()
+	timeRange := query.TimeRange
+	if timeRange <= 0 {
+		timeRange = time.Hour
+	}
+	start := end.Add(-timeRange)
+
+	sqlQuery := `SELECT count() FROM v_api_gpu_metrics WHERE window_start >= ? AND window_start <= ?`
+	args := []interface{}{start, end}
+
+	if query.OrchestratorAddress != "" {
+		sqlQuery += " AND orchestrator_address = ?"
+		args = append(args, query.OrchestratorAddress)
+	}
+	if query.PipelineID != "" {
+		sqlQuery += " AND pipeline_id = ?"
+		args = append(args, query.PipelineID)
+	}
+	if query.ModelID != "" {
+		sqlQuery += " AND model_id = ?"
+		args = append(args, query.ModelID)
+	}
+	if query.GPUID != "" {
+		sqlQuery += " AND gpu_id = ?"
+		args = append(args, query.GPUID)
+	}
+	if query.Region != "" {
+		sqlQuery += " AND region = ?"
+		args = append(args, query.Region)
+	}
+	if query.GPUModelName != "" {
+		sqlQuery += " AND gpu_model_name = ?"
+		args = append(args, query.GPUModelName)
+	}
+	if query.RunnerVersion != "" {
+		sqlQuery += " AND runner_version = ?"
+		args = append(args, query.RunnerVersion)
+	}
+	if query.CudaVersion != "" {
+		sqlQuery += " AND cuda_version = ?"
+		args = append(args, query.CudaVersion)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var total int
+	if err := s.db.QueryRowContext(ctx, sqlQuery, args...).Scan(&total); err != nil {
+		return 0, fmt.Errorf("gpu metrics count query failed: %w", err)
+	}
+	return total, nil
+}
+
 // --- Network Demand ---
 
 func (s *ClickhouseStore) NetworkDemand(query *models.NetworkDemandQuery) ([]*models.NetworkDemandRow, error) {
@@ -234,7 +301,16 @@ func (s *ClickhouseStore) NetworkDemand(query *models.NetworkDemandQuery) ([]*mo
 		args = append(args, query.ModelID)
 	}
 
-	sqlQuery += " ORDER BY window_start DESC LIMIT 200"
+	pageSize := query.Pagination.PageSize
+	if pageSize <= 0 {
+		pageSize = 50
+	}
+	offset := (query.Pagination.Page - 1) * pageSize
+	if offset < 0 {
+		offset = 0
+	}
+	sqlQuery += " ORDER BY window_start DESC LIMIT ? OFFSET ?"
+	args = append(args, pageSize, offset)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -274,6 +350,48 @@ func (s *ClickhouseStore) NetworkDemand(query *models.NetworkDemandQuery) ([]*mo
 
 	common.Logger.Debug("ClickHouse NetworkDemand returned %d rows", len(results))
 	return results, nil
+}
+
+func (s *ClickhouseStore) NetworkDemandCount(query *models.NetworkDemandQuery) (int, error) {
+	if query == nil {
+		return 0, errors.New("network demand query cannot be nil")
+	}
+
+	end := time.Now().UTC()
+	interval := query.Interval
+	if interval <= 0 {
+		interval = 15 * time.Minute
+	}
+	start := end.Add(-interval * 12)
+
+	sqlQuery := `SELECT count() FROM v_api_network_demand WHERE window_start >= ? AND window_start <= ?`
+	args := []interface{}{start, end}
+
+	if query.Gateway != "" {
+		sqlQuery += " AND gateway = ?"
+		args = append(args, query.Gateway)
+	}
+	if query.Region != "" {
+		sqlQuery += " AND region = ?"
+		args = append(args, query.Region)
+	}
+	if query.PipelineID != "" {
+		sqlQuery += " AND pipeline_id = ?"
+		args = append(args, query.PipelineID)
+	}
+	if query.ModelID != "" {
+		sqlQuery += " AND model_id = ?"
+		args = append(args, query.ModelID)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var total int
+	if err := s.db.QueryRowContext(ctx, sqlQuery, args...).Scan(&total); err != nil {
+		return 0, fmt.Errorf("network demand count query failed: %w", err)
+	}
+	return total, nil
 }
 
 // --- SLA Compliance ---
@@ -323,7 +441,16 @@ func (s *ClickhouseStore) SLACompliance(query *models.SLAComplianceQuery) ([]*mo
 		args = append(args, query.Region)
 	}
 
-	sqlQuery += " ORDER BY window_start DESC LIMIT 200"
+	pageSize := query.Pagination.PageSize
+	if pageSize <= 0 {
+		pageSize = 50
+	}
+	offset := (query.Pagination.Page - 1) * pageSize
+	if offset < 0 {
+		offset = 0
+	}
+	sqlQuery += " ORDER BY window_start DESC LIMIT ? OFFSET ?"
+	args = append(args, pageSize, offset)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -369,6 +496,52 @@ func (s *ClickhouseStore) SLACompliance(query *models.SLAComplianceQuery) ([]*mo
 
 	common.Logger.Debug("ClickHouse SLACompliance returned %d rows", len(results))
 	return results, nil
+}
+
+func (s *ClickhouseStore) SLAComplianceCount(query *models.SLAComplianceQuery) (int, error) {
+	if query == nil {
+		return 0, errors.New("sla compliance query cannot be nil")
+	}
+
+	end := time.Now().UTC()
+	period := query.Period
+	if period <= 0 {
+		period = 24 * time.Hour
+	}
+	start := end.Add(-period)
+
+	sqlQuery := `SELECT count() FROM v_api_sla_compliance WHERE window_start >= ? AND window_start <= ?`
+	args := []interface{}{start, end}
+
+	if query.OrchestratorAddress != "" {
+		sqlQuery += " AND orchestrator_address = ?"
+		args = append(args, query.OrchestratorAddress)
+	}
+	if query.PipelineID != "" {
+		sqlQuery += " AND pipeline_id = ?"
+		args = append(args, query.PipelineID)
+	}
+	if query.ModelID != "" {
+		sqlQuery += " AND model_id = ?"
+		args = append(args, query.ModelID)
+	}
+	if query.GPUID != "" {
+		sqlQuery += " AND gpu_id = ?"
+		args = append(args, query.GPUID)
+	}
+	if query.Region != "" {
+		sqlQuery += " AND region = ?"
+		args = append(args, query.Region)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var total int
+	if err := s.db.QueryRowContext(ctx, sqlQuery, args...).Scan(&total); err != nil {
+		return 0, fmt.Errorf("sla compliance count query failed: %w", err)
+	}
+	return total, nil
 }
 
 // --- Datasets (hard-coded, no view yet) ---
