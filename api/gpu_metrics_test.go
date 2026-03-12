@@ -98,6 +98,40 @@ func TestGPUMetricsHandler_ValidationRejectsBadDuration(t *testing.T) {
 	}
 }
 
+func TestGPUMetricsHandler_AllowsWideTimeRangeWhenGPUIDProvided(t *testing.T) {
+	metrics.SetStore(metrics.NewMockStore())
+
+	req, err := http.NewRequest("GET", "/gpu/metrics?gpu_id=GPU-3f93b3ef-7ea7-4480-aa80-75d59014fb74&time_range=168h", nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(GPUMetricsHandler)
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200 when gpu_id is provided, got %v, body: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestGPUMetricsHandler_SupportsRepeatedGPUIDParams(t *testing.T) {
+	metrics.SetStore(metrics.NewMockStore())
+
+	req, err := http.NewRequest("GET", "/gpu/metrics?gpu_id=GPU-1&gpu_id=GPU-2&time_range=168h", nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(GPUMetricsHandler)
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200 with repeated gpu_id params, got %v, body: %s", rr.Code, rr.Body.String())
+	}
+}
+
 func TestGPUMetricsHandler_PaginationRejectsInvalidPage(t *testing.T) {
 	metrics.SetStore(metrics.NewMockStore())
 

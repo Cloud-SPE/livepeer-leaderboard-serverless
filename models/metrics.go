@@ -17,6 +17,7 @@ type GPUMetricsQuery struct {
 	PipelineID          string
 	ModelID             string
 	GPUID               string
+	GPUIDs              []string
 	Region              string
 	GPUModelName        string
 	RunnerVersion       string

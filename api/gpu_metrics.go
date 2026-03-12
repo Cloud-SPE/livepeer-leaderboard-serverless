@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/livepeer/leaderboard-serverless/common"
@@ -24,10 +25,6 @@ func GPUMetricsHandler(w http.ResponseWriter, r *http.Request) {
 		common.HandleBadRequest(w, err)
 		return
 	}
-	if err := common.ValidateDuration("time_range", timeRange, time.Minute, 24*time.Hour); err != nil {
-		common.HandleBadRequest(w, err)
-		return
-	}
 
 	orchAddr, err := common.ValidateOptionalString("orchestrator_address", r.URL.Query().Get("orchestrator_address"), 256)
 	if err != nil {
@@ -38,6 +35,22 @@ func GPUMetricsHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		common.HandleBadRequest(w, err)
 		return
+	}
+	gpuIDs, err := parseGPUIDFilters(r)
+	if err != nil {
+		common.HandleBadRequest(w, err)
+		return
+	}
+	// Preserve backwards compatibility for callers that only send gpu_id once.
+	if gpuID == "" && len(gpuIDs) == 1 {
+		gpuID = gpuIDs[0]
+	}
+	// Only enforce the strict time window when no GPU filter is provided.
+	if gpuID == "" && len(gpuIDs) == 0 {
+		if err := common.ValidateDuration("time_range", timeRange, time.Minute, 24*time.Hour); err != nil {
+			common.HandleBadRequest(w, err)
+			return
+		}
 	}
 	region, err := common.ValidateOptionalString("region", r.URL.Query().Get("region"), 64)
 	if err != nil {
@@ -79,6 +92,7 @@ func GPUMetricsHandler(w http.ResponseWriter, r *http.Request) {
 	query := &models.GPUMetricsQuery{
 		OrchestratorAddress: orchAddr,
 		GPUID:               gpuID,
+		GPUIDs:              gpuIDs,
 		Region:              region,
 		PipelineID:          pipelineID,
 		ModelID:             modelID,
@@ -113,4 +127,29 @@ func GPUMetricsHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	w.Write(resultsEncoded)
+}
+
+func parseGPUIDFilters(r *http.Request) ([]string, error) {
+	values := append([]string{}, r.URL.Query()["gpu_id"]...)
+	values = append(values, r.URL.Query()["gpu_id[]"]...)
+
+	ids := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, raw := range values {
+		for _, candidate := range strings.Split(raw, ",") {
+			trimmed, err := common.ValidateOptionalString("gpu_id", candidate, 256)
+			if err != nil {
+				return nil, err
+			}
+			if trimmed == "" {
+				continue
+			}
+			if _, ok := seen[trimmed]; ok {
+				continue
+			}
+			seen[trimmed] = struct{}{}
+			ids = append(ids, trimmed)
+		}
+	}
+	return ids, nil
 }

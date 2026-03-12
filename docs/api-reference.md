@@ -18,6 +18,7 @@ These endpoints are backed by ClickHouse views:
 | `pipeline_id` | Optional pipeline filter. |
 | `model_id` | Optional model filter. |
 | `gpu_id` | Optional GPU ID filter. |
+| `gpu_id[]` | Optional repeated GPU ID filter (array form). Also supports repeated `gpu_id` and comma-separated `gpu_id` values. |
 | `region` | Optional region filter. |
 | `gpu_model_name` | Optional GPU model filter. |
 | `runner_version` | Optional runner version filter. |
@@ -48,6 +49,7 @@ Response payload shape:
 
 Contract notes:
 - Grain: one row per `(window_start hour, orchestrator_address, pipeline_id, model_id, gpu_id, region)`.
+- When any GPU ID filter is provided (`gpu_id` / repeated `gpu_id` / `gpu_id[]`), the endpoint does not apply the default 24h `time_range` restriction; results are matched by GPU ID(s) and returned in newest-first order.
 - `total_swapped_sessions` is the union of `confirmed_swapped_sessions` and `inferred_swap_sessions`.
 - `startup_unexcused_rate = startup_unexcused_sessions / known_sessions_count` (returns `0` when denominator is `0`).
 - `swap_rate = total_swapped_sessions / known_sessions_count` (returns `0` when denominator is `0`).

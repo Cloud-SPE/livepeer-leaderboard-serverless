@@ -67,6 +67,8 @@ func (s *ClickhouseStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.G
 		timeRange = time.Hour
 	}
 	start := end.Add(-timeRange)
+	mergedGPUIDs := mergeGPUIDFilters(query.GPUID, query.GPUIDs)
+	hasGPUIDFilter := len(mergedGPUIDs) > 0
 
 	sqlQuery := `SELECT
 		window_start, orchestrator_address, pipeline_id,
@@ -81,9 +83,13 @@ func (s *ClickhouseStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.G
 		confirmed_swapped_sessions, inferred_swap_sessions, total_swapped_sessions,
 		startup_unexcused_rate, swap_rate
 	FROM v_api_gpu_metrics
-	WHERE window_start >= ? AND window_start <= ?`
+	WHERE 1 = 1`
 
-	args := []interface{}{start, end}
+	args := make([]interface{}, 0, 16)
+	if !hasGPUIDFilter {
+		sqlQuery += " AND window_start >= ? AND window_start <= ?"
+		args = append(args, start, end)
+	}
 
 	if query.OrchestratorAddress != "" {
 		sqlQuery += " AND orchestrator_address = ?"
@@ -97,9 +103,14 @@ func (s *ClickhouseStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.G
 		sqlQuery += " AND model_id = ?"
 		args = append(args, query.ModelID)
 	}
-	if query.GPUID != "" {
+	if len(mergedGPUIDs) == 1 {
 		sqlQuery += " AND gpu_id = ?"
-		args = append(args, query.GPUID)
+		args = append(args, mergedGPUIDs[0])
+	} else if len(mergedGPUIDs) > 1 {
+		sqlQuery += " AND gpu_id IN (" + placeholders(len(mergedGPUIDs)) + ")"
+		for _, id := range mergedGPUIDs {
+			args = append(args, id)
+		}
 	}
 	if query.Region != "" {
 		sqlQuery += " AND region = ?"
@@ -131,7 +142,7 @@ func (s *ClickhouseStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.G
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	common.Logger.Debug("ClickHouse GPUMetrics query start=%v end=%v", start, end)
+	common.Logger.Debug("ClickHouse GPUMetrics query start=%v end=%v bypass_time_range=%t", start, end, hasGPUIDFilter)
 
 	rows, err := s.db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
@@ -641,4 +652,37 @@ func protocolFromString(value string) clickhouse.Protocol {
 	default:
 		return clickhouse.HTTP
 	}
+}
+
+func mergeGPUIDFilters(single string, multiple []string) []string {
+	ids := make([]string, 0, len(multiple)+1)
+	seen := make(map[string]struct{}, len(multiple)+1)
+
+	add := func(value string) {
+		if value == "" {
+			return
+		}
+		if _, ok := seen[value]; ok {
+			return
+		}
+		seen[value] = struct{}{}
+		ids = append(ids, value)
+	}
+
+	add(single)
+	for _, value := range multiple {
+		add(value)
+	}
+	return ids
+}
+
+func placeholders(count int) string {
+	if count <= 0 {
+		return ""
+	}
+	parts := make([]string, count)
+	for i := range parts {
+		parts[i] = "?"
+	}
+	return strings.Join(parts, ",")
 }

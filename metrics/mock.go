@@ -1,7 +1,6 @@
 package metrics
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/livepeer/leaderboard-serverless/models"
@@ -28,6 +27,10 @@ func (m *MockStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.GPUMetr
 	if query.ModelID != "" {
 		modelID = query.ModelID
 	}
+	gpuID := query.GPUID
+	if gpuID == "" && len(query.GPUIDs) > 0 {
+		gpuID = query.GPUIDs[0]
+	}
 
 	gpuModelName := "NVIDIA RTX 4090"
 	var gpuMemory uint64 = 24576
@@ -49,7 +52,7 @@ func (m *MockStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.GPUMetr
 			OrchestratorAddress:       orchAddr,
 			PipelineID:                pipelineID,
 			ModelID:                   &modelID,
-			GPUID:                     nilIfEmpty(query.GPUID),
+			GPUID:                     nilIfEmpty(gpuID),
 			Region:                    nilIfEmpty(query.Region),
 			AvgOutputFPS:              14.67 - float64(i)*1.2,
 			P95OutputFPS:              float32(18.19 - float64(i)*1.0),
@@ -281,7 +284,7 @@ func (m *MockStore) Datasets(query *models.DatasetsQuery) ([]*models.Dataset, er
 }
 
 func (m *MockStore) String() string {
-	return fmt.Sprintf("MockStore")
+	return "MockStore"
 }
 
 func nilIfEmpty(s string) *string {
