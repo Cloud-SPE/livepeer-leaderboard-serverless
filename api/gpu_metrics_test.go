@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -115,10 +116,10 @@ func TestGPUMetricsHandler_AllowsWideTimeRangeWhenGPUIDProvided(t *testing.T) {
 	}
 }
 
-func TestGPUMetricsHandler_SupportsRepeatedGPUIDParams(t *testing.T) {
+func TestGPUMetricsHandler_SupportsCommaSeparatedGPUIDs(t *testing.T) {
 	metrics.SetStore(metrics.NewMockStore())
 
-	req, err := http.NewRequest("GET", "/gpu/metrics?gpu_id=GPU-1&gpu_id=GPU-2&time_range=168h", nil)
+	req, err := http.NewRequest("GET", "/gpu/metrics?gpu_id=GPU-1,GPU-2&time_range=168h", nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
@@ -128,7 +129,43 @@ func TestGPUMetricsHandler_SupportsRepeatedGPUIDParams(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
-		t.Fatalf("Expected 200 with repeated gpu_id params, got %v, body: %s", rr.Code, rr.Body.String())
+		t.Fatalf("Expected 200 with comma-separated gpu_id, got %v, body: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestGPUMetricsHandler_POSTAcceptsGPUIDsArray(t *testing.T) {
+	metrics.SetStore(metrics.NewMockStore())
+
+	body := `{"gpu_ids":["GPU-1","GPU-2","GPU-3"]}`
+	req, err := http.NewRequest("POST", "/gpu/metrics?time_range=168h", bytes.NewBufferString(body))
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(GPUMetricsHandler)
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200 with POST gpu_ids array, got %v, body: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestGPUMetricsHandler_RejectsUnsupportedMethod(t *testing.T) {
+	metrics.SetStore(metrics.NewMockStore())
+
+	req, err := http.NewRequest("PUT", "/gpu/metrics?time_range=1h", nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(GPUMetricsHandler)
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("Expected 405 for PUT, got %v", rr.Code)
 	}
 }
 

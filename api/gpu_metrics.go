@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -12,9 +13,21 @@ import (
 	"github.com/livepeer/leaderboard-serverless/models"
 )
 
+// gpuMetricsPostBody is the JSON body for POST /api/gpu/metrics.
+type gpuMetricsPostBody struct {
+	GPUIDs []string `json:"gpu_ids"`
+}
+
 // GPUMetricsHandler handles a request for per-GPU realtime metrics.
+// GET: supports comma-separated gpu_id query param.
+// POST: accepts JSON body with gpu_ids array for long lists that exceed URL limits.
 func GPUMetricsHandler(w http.ResponseWriter, r *http.Request) {
 	middleware.AddStandardHttpHeaders(w)
+
+	if r.Method != http.MethodGet && r.Method != http.MethodPost {
+		common.RespondWithError(w, errors.New("method not allowed"), http.StatusMethodNotAllowed)
+		return
+	}
 
 	if !requireClickhouse(w) {
 		return
@@ -31,18 +44,23 @@ func GPUMetricsHandler(w http.ResponseWriter, r *http.Request) {
 		common.HandleBadRequest(w, err)
 		return
 	}
-	gpuID, err := common.ValidateOptionalString("gpu_id", r.URL.Query().Get("gpu_id"), 256)
-	if err != nil {
-		common.HandleBadRequest(w, err)
-		return
+
+	var gpuID string
+	var gpuIDs []string
+	if r.Method == http.MethodPost {
+		gpuIDs, err = parseGPUIDsFromPost(r)
+		if err != nil {
+			common.HandleBadRequest(w, err)
+			return
+		}
+	} else {
+		gpuIDs, err = parseGPUIDsFromQuery(r)
+		if err != nil {
+			common.HandleBadRequest(w, err)
+			return
+		}
 	}
-	gpuIDs, err := parseGPUIDFilters(r)
-	if err != nil {
-		common.HandleBadRequest(w, err)
-		return
-	}
-	// Preserve backwards compatibility for callers that only send gpu_id once.
-	if gpuID == "" && len(gpuIDs) == 1 {
+	if len(gpuIDs) == 1 {
 		gpuID = gpuIDs[0]
 	}
 	// Only enforce the strict time window when no GPU filter is provided.
@@ -129,27 +147,40 @@ func GPUMetricsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(resultsEncoded)
 }
 
-func parseGPUIDFilters(r *http.Request) ([]string, error) {
-	values := append([]string{}, r.URL.Query()["gpu_id"]...)
-	values = append(values, r.URL.Query()["gpu_id[]"]...)
+// parseGPUIDsFromQuery parses comma-separated gpu_id from GET query params only.
+func parseGPUIDsFromQuery(r *http.Request) ([]string, error) {
+	raw := r.URL.Query().Get("gpu_id")
+	if raw == "" {
+		return nil, nil
+	}
+	return parseAndDedupeGPUIDs(strings.Split(raw, ","))
+}
 
-	ids := make([]string, 0, len(values))
-	seen := make(map[string]struct{}, len(values))
-	for _, raw := range values {
-		for _, candidate := range strings.Split(raw, ",") {
-			trimmed, err := common.ValidateOptionalString("gpu_id", candidate, 256)
-			if err != nil {
-				return nil, err
-			}
-			if trimmed == "" {
-				continue
-			}
-			if _, ok := seen[trimmed]; ok {
-				continue
-			}
-			seen[trimmed] = struct{}{}
-			ids = append(ids, trimmed)
+// parseGPUIDsFromPost parses gpu_ids array from POST JSON body.
+func parseGPUIDsFromPost(r *http.Request) ([]string, error) {
+	var body gpuMetricsPostBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		return nil, err
+	}
+	return parseAndDedupeGPUIDs(body.GPUIDs)
+}
+
+func parseAndDedupeGPUIDs(candidates []string) ([]string, error) {
+	ids := make([]string, 0, len(candidates))
+	seen := make(map[string]struct{}, len(candidates))
+	for _, c := range candidates {
+		trimmed, err := common.ValidateOptionalString("gpu_id", c, 256)
+		if err != nil {
+			return nil, err
 		}
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		ids = append(ids, trimmed)
 	}
 	return ids, nil
 }
