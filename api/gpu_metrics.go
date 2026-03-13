@@ -19,12 +19,12 @@ func GPUMetricsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	timeRange, err := common.ParseDurationParam(r, "time_range", time.Hour)
+	timeRange, err := common.ParseDurationParam(r, "time_range", 24*time.Hour)
 	if err != nil {
 		common.HandleBadRequest(w, err)
 		return
 	}
-	if err := common.ValidateDuration("time_range", timeRange, time.Minute, 24*time.Hour); err != nil {
+	if err := common.ValidateDuration("time_range", timeRange, time.Minute, 72*time.Hour); err != nil {
 		common.HandleBadRequest(w, err)
 		return
 	}

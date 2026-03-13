@@ -13,7 +13,7 @@ These endpoints are backed by ClickHouse views:
 
 | Parameter | Description |
 |---|---|
-| `time_range` | Duration window to query. Default is `1h`, minimum is `1m`, maximum is `24h`. |
+| `time_range` | Duration window to query. Default is `24h`, minimum is `1m`, maximum is `72h`. |
 | `orchestrator_address` | Optional orchestrator address filter. |
 | `pipeline_id` | Optional pipeline filter. |
 | `model_id` | Optional model filter. |
@@ -57,7 +57,7 @@ Contract notes:
 
 | Parameter | Description |
 |---|---|
-| `interval` | Aggregation interval duration. Default is `15m`, minimum is `1m`, maximum is `24h`. |
+| `interval` | Aggregation interval duration. Default is `15m`, minimum is `1m`, maximum is `48h`. |
 | `gateway` | Optional gateway filter. |
 | `region` | Optional region filter. |
 | `pipeline_id` | Optional pipeline filter. |

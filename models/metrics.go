@@ -143,20 +143,3 @@ type SLAComplianceRow struct {
 	NoSwapRate                *float64  `json:"no_swap_rate"`
 	SLAScore                  *float64  `json:"sla_score"`
 }
-
-// --- Datasets (no view yet, hard-coded) ---
-
-type DatasetsQuery struct {
-	Workflow string
-	Type     string
-}
-
-type Dataset struct {
-	ID          string    `json:"id"`
-	Workflow    string    `json:"workflow"`
-	Type        string    `json:"type"`
-	Description string    `json:"description"`
-	SizeMB      int       `json:"size_mb"`
-	UpdatedAt   time.Time `json:"updated_at"`
-	URI         string    `json:"uri"`
-}

@@ -87,6 +87,3 @@ if [[ -n "${sla_orch}" || -n "${sla_model_id}" || -n "${sla_pipeline_id}" ]]; th
 else
   echo "Skipping derived SLA filtered call: base check had no orchestrator/model_id/pipeline_id values."
 fi
-
-echo "=== Datasets (inference, good) ==="
-curl -sS "${base_url}/api/datasets?workflow=inference&type=good" | jq .

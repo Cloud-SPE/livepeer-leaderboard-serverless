@@ -11,7 +11,6 @@ type MetricsStore interface {
 	NetworkDemandCount(query *models.NetworkDemandQuery) (int, error)
 	SLACompliance(query *models.SLAComplianceQuery) ([]*models.SLAComplianceRow, error)
 	SLAComplianceCount(query *models.SLAComplianceQuery) (int, error)
-	Datasets(query *models.DatasetsQuery) ([]*models.Dataset, error)
 }
 
 var Store MetricsStore

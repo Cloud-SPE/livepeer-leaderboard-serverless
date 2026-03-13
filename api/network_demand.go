@@ -24,7 +24,7 @@ func NetworkDemandHandler(w http.ResponseWriter, r *http.Request) {
 		common.HandleBadRequest(w, err)
 		return
 	}
-	if err := common.ValidateDuration("interval", interval, time.Minute, 24*time.Hour); err != nil {
+	if err := common.ValidateDuration("interval", interval, time.Minute, 48*time.Hour); err != nil {
 		common.HandleBadRequest(w, err)
 		return
 	}

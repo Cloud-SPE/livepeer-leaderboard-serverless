@@ -64,7 +64,7 @@ func (s *ClickhouseStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.G
 	end := time.Now().UTC()
 	timeRange := query.TimeRange
 	if timeRange <= 0 {
-		timeRange = time.Hour
+		timeRange = 24 * time.Hour
 	}
 	start := end.Add(-timeRange)
 
@@ -542,84 +542,6 @@ func (s *ClickhouseStore) SLAComplianceCount(query *models.SLAComplianceQuery) (
 		return 0, fmt.Errorf("sla compliance count query failed: %w", err)
 	}
 	return total, nil
-}
-
-// --- Datasets (hard-coded, no view yet) ---
-
-func (s *ClickhouseStore) Datasets(query *models.DatasetsQuery) ([]*models.Dataset, error) {
-	now := time.Now().UTC()
-	datasets := []*models.Dataset{
-		{
-			ID:          "dataset-good-001",
-			Workflow:    "streaming",
-			Type:        "good",
-			Description: "Stable network load test sample set.",
-			SizeMB:      512,
-			UpdatedAt:   now.Add(-48 * time.Hour),
-			URI:         "s3://livepeer/datasets/streaming/good-001",
-		},
-		{
-			ID:          "dataset-good-002",
-			Workflow:    "inference",
-			Type:        "good",
-			Description: "Low-latency inference benchmark set.",
-			SizeMB:      1536,
-			UpdatedAt:   now.Add(-36 * time.Hour),
-			URI:         "s3://livepeer/datasets/inference/good-002",
-		},
-		{
-			ID:          "dataset-random-002",
-			Workflow:    "inference",
-			Type:        "random",
-			Description: "Mixed inference prompts for baseline variance.",
-			SizeMB:      2048,
-			UpdatedAt:   now.Add(-24 * time.Hour),
-			URI:         "s3://livepeer/datasets/inference/random-002",
-		},
-		{
-			ID:          "dataset-random-003",
-			Workflow:    "streaming",
-			Type:        "random",
-			Description: "Randomized bitrate and segment sizes.",
-			SizeMB:      640,
-			UpdatedAt:   now.Add(-12 * time.Hour),
-			URI:         "s3://livepeer/datasets/streaming/random-003",
-		},
-		{
-			ID:          "dataset-bad-003",
-			Workflow:    "streaming",
-			Type:        "bad",
-			Description: "Adversarial network conditions for failure testing.",
-			SizeMB:      768,
-			UpdatedAt:   now.Add(-72 * time.Hour),
-			URI:         "s3://livepeer/datasets/streaming/bad-003",
-		},
-		{
-			ID:          "dataset-bad-004",
-			Workflow:    "inference",
-			Type:        "bad",
-			Description: "Adversarial prompts causing retries.",
-			SizeMB:      980,
-			UpdatedAt:   now.Add(-96 * time.Hour),
-			URI:         "s3://livepeer/datasets/inference/bad-004",
-		},
-	}
-
-	if query == nil {
-		return datasets, nil
-	}
-
-	filtered := make([]*models.Dataset, 0, len(datasets))
-	for _, d := range datasets {
-		if query.Workflow != "" && d.Workflow != query.Workflow {
-			continue
-		}
-		if query.Type != "" && d.Type != query.Type {
-			continue
-		}
-		filtered = append(filtered, d)
-	}
-	return filtered, nil
 }
 
 // --- helpers ---
