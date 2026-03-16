@@ -69,6 +69,11 @@ func GPUMetricsHandler(w http.ResponseWriter, r *http.Request) {
 		common.HandleBadRequest(w, err)
 		return
 	}
+	org, err := common.ValidateOptionalString("org", r.URL.Query().Get("org"), 256)
+	if err != nil {
+		common.HandleBadRequest(w, err)
+		return
+	}
 
 	page, pageSize, err := common.ParsePageParams(r)
 	if err != nil {
@@ -77,6 +82,7 @@ func GPUMetricsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	query := &models.GPUMetricsQuery{
+		Org:                 org,
 		OrchestratorAddress: orchAddr,
 		GPUID:               gpuID,
 		Region:              region,

@@ -115,6 +115,37 @@ func TestGPUMetricsHandler_AllowsExtendedDuration(t *testing.T) {
 	}
 }
 
+func TestGPUMetricsHandler_WithOrg(t *testing.T) {
+	metrics.SetStore(metrics.NewMockStore())
+
+	req, err := http.NewRequest("GET", "/gpu/metrics?org=test-org-1", nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(GPUMetricsHandler)
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200 for org filter, got %v", rr.Code)
+	}
+
+	var payload struct {
+		Metrics []models.GPUMetric `json:"metrics"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if len(payload.Metrics) == 0 {
+		t.Fatalf("Expected at least one metric row")
+	}
+	if payload.Metrics[0].Org == nil || *payload.Metrics[0].Org != "test-org-1" {
+		t.Fatalf("Expected org field to be present and match query, got %+v", payload.Metrics[0].Org)
+	}
+}
+
 func TestGPUMetricsHandler_PaginationRejectsInvalidPage(t *testing.T) {
 	metrics.SetStore(metrics.NewMockStore())
 

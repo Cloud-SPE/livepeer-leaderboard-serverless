@@ -28,6 +28,7 @@ func (m *MockStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.GPUMetr
 	if query.ModelID != "" {
 		modelID = query.ModelID
 	}
+	org := nilIfEmpty(query.Org)
 
 	gpuModelName := "NVIDIA RTX 4090"
 	var gpuMemory uint64 = 24576
@@ -46,6 +47,7 @@ func (m *MockStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.GPUMetr
 
 		metrics = append(metrics, &models.GPUMetric{
 			WindowStart:               now.Add(-time.Duration(i) * time.Minute),
+			Org:                       org,
 			OrchestratorAddress:       orchAddr,
 			PipelineID:                pipelineID,
 			ModelID:                   &modelID,
@@ -113,11 +115,13 @@ func (m *MockStore) NetworkDemand(query *models.NetworkDemandQuery) ([]*models.N
 	if query.ModelID != "" {
 		modelID = query.ModelID
 	}
+	org := nilIfEmpty(query.Org)
 
 	rows := make([]*models.NetworkDemandRow, 0, 12)
 	for i := 11; i >= 0; i-- {
 		rows = append(rows, &models.NetworkDemandRow{
 			WindowStart:               now.Add(-time.Duration(i) * interval),
+			Org:                       org,
 			Gateway:                   gateway,
 			Region:                    nilIfEmpty(query.Region),
 			PipelineID:                pipelineID,
@@ -163,6 +167,7 @@ func (m *MockStore) SLACompliance(query *models.SLAComplianceQuery) ([]*models.S
 	if query.PipelineID != "" {
 		pipelineID = query.PipelineID
 	}
+	org := nilIfEmpty(query.Org)
 
 	successRatio := 1.0
 	startupSuccessRatio := 1.0
@@ -180,6 +185,7 @@ func (m *MockStore) SLACompliance(query *models.SLAComplianceQuery) ([]*models.S
 	rows := []*models.SLAComplianceRow{
 		{
 			WindowStart:               now.Add(-period),
+			Org:                       org,
 			OrchestratorAddress:       orchAddr,
 			PipelineID:                pipelineID,
 			ModelID:                   &modelID,

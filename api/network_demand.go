@@ -49,6 +49,11 @@ func NetworkDemandHandler(w http.ResponseWriter, r *http.Request) {
 		common.HandleBadRequest(w, err)
 		return
 	}
+	org, err := common.ValidateOptionalString("org", r.URL.Query().Get("org"), 256)
+	if err != nil {
+		common.HandleBadRequest(w, err)
+		return
+	}
 	page, pageSize, err := common.ParsePageParams(r)
 	if err != nil {
 		common.HandleBadRequest(w, err)
@@ -56,6 +61,7 @@ func NetworkDemandHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	query := &models.NetworkDemandQuery{
+		Org:        org,
 		Gateway:    gateway,
 		Region:     region,
 		PipelineID: pipelineID,

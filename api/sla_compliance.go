@@ -54,6 +54,11 @@ func SLAComplianceHandler(w http.ResponseWriter, r *http.Request) {
 		common.HandleBadRequest(w, err)
 		return
 	}
+	org, err := common.ValidateOptionalString("org", r.URL.Query().Get("org"), 256)
+	if err != nil {
+		common.HandleBadRequest(w, err)
+		return
+	}
 
 	page, pageSize, err := common.ParsePageParams(r)
 	if err != nil {
@@ -62,6 +67,7 @@ func SLAComplianceHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	query := &models.SLAComplianceQuery{
+		Org:                 org,
 		OrchestratorAddress: orchAddr,
 		Region:              region,
 		PipelineID:          pipelineID,

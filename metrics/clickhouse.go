@@ -67,9 +67,17 @@ func (s *ClickhouseStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.G
 		timeRange = 24 * time.Hour
 	}
 	start := end.Add(-timeRange)
+	viewName := "v_api_gpu_metrics"
+	orgSelect := "CAST(NULL AS Nullable(String)) AS org"
+	useOrgView := query.Org != ""
+	if useOrgView {
+		viewName = "v_api_gpu_metrics_by_org"
+		orgSelect = "org"
+	}
 
-	sqlQuery := `SELECT
+	sqlQuery := fmt.Sprintf(`SELECT
 		window_start, orchestrator_address, pipeline_id,
+		%s,
 		model_id, gpu_id, region,
 		avg_output_fps, p95_output_fps, fps_jitter_coefficient, status_samples,
 		sessions_ending_in_error, error_status_samples, health_signal_coverage_ratio,
@@ -80,10 +88,14 @@ func (s *ClickhouseStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.G
 		known_sessions_count, startup_success_sessions, startup_excused_sessions, startup_unexcused_sessions,
 		confirmed_swapped_sessions, inferred_swap_sessions, total_swapped_sessions,
 		startup_unexcused_rate, swap_rate
-	FROM v_api_gpu_metrics
-	WHERE window_start >= ? AND window_start <= ?`
+	FROM %s
+	WHERE window_start >= ? AND window_start <= ?`, orgSelect, viewName)
 
 	args := []interface{}{start, end}
+	if useOrgView {
+		sqlQuery += " AND org = ?"
+		args = append(args, query.Org)
+	}
 
 	if query.OrchestratorAddress != "" {
 		sqlQuery += " AND orchestrator_address = ?"
@@ -143,17 +155,19 @@ func (s *ClickhouseStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.G
 	for rows.Next() {
 		m := &models.GPUMetric{}
 		// clickhouse-go returns Nullable columns as pointers
+		var org *string
 		var modelID, gpuID, region *string
 		var fpsJitterCoefficient *float64
-		var avgOutputFPS sql.NullFloat64
-		var p95OutputFPS sql.NullFloat64
+		var avgOutputFPS *float64
+		var p95OutputFPS *float64
 		var gpuModelName, runnerVersion, cudaVersion *string
 		var gpuMemoryBytesTotal *uint64
 		var avgPromptToFirstFrameMs, avgStartupLatencyMs, avgE2ELatencyMs *float64
-		var p95PromptToFirstFrameLatencyMs, p95StartupLatencyMs, p95E2ELatencyMs *float32
+		var p95PromptToFirstFrameLatencyMs, p95StartupLatencyMs, p95E2ELatencyMs *float64
 
 		if err := rows.Scan(
 			&m.WindowStart, &m.OrchestratorAddress, &m.PipelineID,
+			&org,
 			&modelID, &gpuID, &region,
 			&avgOutputFPS, &p95OutputFPS, &fpsJitterCoefficient, &m.StatusSamples,
 			&m.SessionsEndingInError, &m.ErrorStatusSamples, &m.HealthSignalCoverageRatio,
@@ -168,15 +182,16 @@ func (s *ClickhouseStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.G
 			return nil, fmt.Errorf("gpu metrics scan failed: %w", err)
 		}
 
+		m.Org = org
 		m.ModelID = modelID
 		m.GPUID = gpuID
 		m.Region = region
-		if avgOutputFPS.Valid {
-			m.AvgOutputFPS = avgOutputFPS.Float64
+		if avgOutputFPS != nil {
+			m.AvgOutputFPS = *avgOutputFPS
 		}
 		m.FPSJitterCoefficient = fpsJitterCoefficient
-		if p95OutputFPS.Valid {
-			m.P95OutputFPS = float32(p95OutputFPS.Float64)
+		if p95OutputFPS != nil {
+			m.P95OutputFPS = float32(*p95OutputFPS)
 		}
 		m.GPUModelName = gpuModelName
 		m.GPUMemoryBytesTotal = gpuMemoryBytesTotal
@@ -185,9 +200,18 @@ func (s *ClickhouseStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.G
 		m.AvgPromptToFirstFrameMs = avgPromptToFirstFrameMs
 		m.AvgStartupLatencyMs = avgStartupLatencyMs
 		m.AvgE2ELatencyMs = avgE2ELatencyMs
-		m.P95PromptToFirstFrameLatencyMs = p95PromptToFirstFrameLatencyMs
-		m.P95StartupLatencyMs = p95StartupLatencyMs
-		m.P95E2ELatencyMs = p95E2ELatencyMs
+		if p95PromptToFirstFrameLatencyMs != nil {
+			value := float32(*p95PromptToFirstFrameLatencyMs)
+			m.P95PromptToFirstFrameLatencyMs = &value
+		}
+		if p95StartupLatencyMs != nil {
+			value := float32(*p95StartupLatencyMs)
+			m.P95StartupLatencyMs = &value
+		}
+		if p95E2ELatencyMs != nil {
+			value := float32(*p95E2ELatencyMs)
+			m.P95E2ELatencyMs = &value
+		}
 
 		results = append(results, m)
 	}
@@ -210,9 +234,18 @@ func (s *ClickhouseStore) GPUMetricsCount(query *models.GPUMetricsQuery) (int, e
 		timeRange = time.Hour
 	}
 	start := end.Add(-timeRange)
+	viewName := "v_api_gpu_metrics"
+	useOrgView := query.Org != ""
+	if useOrgView {
+		viewName = "v_api_gpu_metrics_by_org"
+	}
 
-	sqlQuery := `SELECT count() FROM v_api_gpu_metrics WHERE window_start >= ? AND window_start <= ?`
+	sqlQuery := fmt.Sprintf(`SELECT count() FROM %s WHERE window_start >= ? AND window_start <= ?`, viewName)
 	args := []interface{}{start, end}
+	if useOrgView {
+		sqlQuery += " AND org = ?"
+		args = append(args, query.Org)
+	}
 
 	if query.OrchestratorAddress != "" {
 		sqlQuery += " AND orchestrator_address = ?"
@@ -270,19 +303,30 @@ func (s *ClickhouseStore) NetworkDemand(query *models.NetworkDemandQuery) ([]*mo
 		interval = 15 * time.Minute
 	}
 	start := end.Add(-interval * 12)
+	viewName := "v_api_network_demand"
+	orgSelect := "CAST(NULL AS Nullable(String)) AS org"
+	useOrgView := query.Org != ""
+	if useOrgView {
+		viewName = "v_api_network_demand_by_org"
+		orgSelect = "org"
+	}
 
-	sqlQuery := `SELECT
-		window_start, gateway, region, pipeline_id, model_id,
+	sqlQuery := fmt.Sprintf(`SELECT
+		window_start, %s, gateway, region, pipeline_id, model_id,
 		sessions_count, avg_output_fps,
 		total_minutes, known_sessions_count, served_sessions, unserved_sessions,
 		total_demand_sessions, startup_unexcused_sessions,
 		confirmed_swapped_sessions, inferred_swap_sessions, total_swapped_sessions,
 		sessions_ending_in_error, error_status_samples, health_signal_coverage_ratio,
 		startup_success_rate, effective_success_rate, ticket_face_value_eth
-	FROM v_api_network_demand
-	WHERE window_start >= ? AND window_start <= ?`
+	FROM %s
+	WHERE window_start >= ? AND window_start <= ?`, orgSelect, viewName)
 
 	args := []interface{}{start, end}
+	if useOrgView {
+		sqlQuery += " AND org = ?"
+		args = append(args, query.Org)
+	}
 
 	if query.Gateway != "" {
 		sqlQuery += " AND gateway = ?"
@@ -326,11 +370,13 @@ func (s *ClickhouseStore) NetworkDemand(query *models.NetworkDemandQuery) ([]*mo
 	for rows.Next() {
 		r := &models.NetworkDemandRow{}
 		// clickhouse-go returns Nullable columns as pointers
+		var org *string
 		var region, modelID *string
+		var avgOutputFPS *float64
 
 		if err := rows.Scan(
-			&r.WindowStart, &r.Gateway, &region, &r.PipelineID, &modelID,
-			&r.SessionsCount, &r.AvgOutputFPS,
+			&r.WindowStart, &org, &r.Gateway, &region, &r.PipelineID, &modelID,
+			&r.SessionsCount, &avgOutputFPS,
 			&r.TotalMinutes, &r.KnownSessionsCount, &r.ServedSessions, &r.UnservedSessions,
 			&r.TotalDemandSessions, &r.StartupUnexcusedSessions,
 			&r.ConfirmedSwappedSessions, &r.InferredSwapSessions, &r.TotalSwappedSessions,
@@ -340,8 +386,12 @@ func (s *ClickhouseStore) NetworkDemand(query *models.NetworkDemandQuery) ([]*mo
 			return nil, fmt.Errorf("network demand scan failed: %w", err)
 		}
 
+		r.Org = org
 		r.Region = region
 		r.ModelID = modelID
+		if avgOutputFPS != nil {
+			r.AvgOutputFPS = *avgOutputFPS
+		}
 		results = append(results, r)
 	}
 	if err := rows.Err(); err != nil {
@@ -363,9 +413,18 @@ func (s *ClickhouseStore) NetworkDemandCount(query *models.NetworkDemandQuery) (
 		interval = 15 * time.Minute
 	}
 	start := end.Add(-interval * 12)
+	viewName := "v_api_network_demand"
+	useOrgView := query.Org != ""
+	if useOrgView {
+		viewName = "v_api_network_demand_by_org"
+	}
 
-	sqlQuery := `SELECT count() FROM v_api_network_demand WHERE window_start >= ? AND window_start <= ?`
+	sqlQuery := fmt.Sprintf(`SELECT count() FROM %s WHERE window_start >= ? AND window_start <= ?`, viewName)
 	args := []interface{}{start, end}
+	if useOrgView {
+		sqlQuery += " AND org = ?"
+		args = append(args, query.Org)
+	}
 
 	if query.Gateway != "" {
 		sqlQuery += " AND gateway = ?"
@@ -407,18 +466,30 @@ func (s *ClickhouseStore) SLACompliance(query *models.SLAComplianceQuery) ([]*mo
 		period = 24 * time.Hour
 	}
 	start := end.Add(-period)
+	viewName := "v_api_sla_compliance"
+	orgSelect := "CAST(NULL AS Nullable(String)) AS org"
+	useOrgView := query.Org != ""
+	if useOrgView {
+		viewName = "v_api_sla_compliance_by_org"
+		orgSelect = "org"
+	}
 
-	sqlQuery := `SELECT
+	sqlQuery := fmt.Sprintf(`SELECT
 		window_start, orchestrator_address, pipeline_id,
+		%s,
 		model_id, gpu_id, region,
 		known_sessions_count, startup_success_sessions, startup_excused_sessions,
 		startup_unexcused_sessions, confirmed_swapped_sessions, inferred_swap_sessions, total_swapped_sessions,
 		sessions_ending_in_error, error_status_samples, health_signal_coverage_ratio,
 		startup_success_rate, effective_success_rate, no_swap_rate, sla_score
-	FROM v_api_sla_compliance
-	WHERE window_start >= ? AND window_start <= ?`
+	FROM %s
+	WHERE window_start >= ? AND window_start <= ?`, orgSelect, viewName)
 
 	args := []interface{}{start, end}
+	if useOrgView {
+		sqlQuery += " AND org = ?"
+		args = append(args, query.Org)
+	}
 
 	if query.OrchestratorAddress != "" {
 		sqlQuery += " AND orchestrator_address = ?"
@@ -466,11 +537,13 @@ func (s *ClickhouseStore) SLACompliance(query *models.SLAComplianceQuery) ([]*mo
 	for rows.Next() {
 		r := &models.SLAComplianceRow{}
 		// clickhouse-go returns Nullable columns as pointers
+		var org *string
 		var modelID, gpuID, region *string
 		var startupSuccessRate, effectiveSuccessRate, noSwapRate, slaScore *float64
 
 		if err := rows.Scan(
 			&r.WindowStart, &r.OrchestratorAddress, &r.PipelineID,
+			&org,
 			&modelID, &gpuID, &region,
 			&r.KnownSessionsCount, &r.StartupSuccessSessions, &r.StartupExcusedSessions,
 			&r.StartupUnexcusedSessions, &r.ConfirmedSwappedSessions, &r.InferredSwapSessions, &r.TotalSwappedSessions,
@@ -480,6 +553,7 @@ func (s *ClickhouseStore) SLACompliance(query *models.SLAComplianceQuery) ([]*mo
 			return nil, fmt.Errorf("sla compliance scan failed: %w", err)
 		}
 
+		r.Org = org
 		r.ModelID = modelID
 		r.GPUID = gpuID
 		r.Region = region
@@ -509,9 +583,18 @@ func (s *ClickhouseStore) SLAComplianceCount(query *models.SLAComplianceQuery) (
 		period = 24 * time.Hour
 	}
 	start := end.Add(-period)
+	viewName := "v_api_sla_compliance"
+	useOrgView := query.Org != ""
+	if useOrgView {
+		viewName = "v_api_sla_compliance_by_org"
+	}
 
-	sqlQuery := `SELECT count() FROM v_api_sla_compliance WHERE window_start >= ? AND window_start <= ?`
+	sqlQuery := fmt.Sprintf(`SELECT count() FROM %s WHERE window_start >= ? AND window_start <= ?`, viewName)
 	args := []interface{}{start, end}
+	if useOrgView {
+		sqlQuery += " AND org = ?"
+		args = append(args, query.Org)
+	}
 
 	if query.OrchestratorAddress != "" {
 		sqlQuery += " AND orchestrator_address = ?"

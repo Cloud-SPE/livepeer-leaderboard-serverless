@@ -98,6 +98,37 @@ func TestSLAComplianceHandler_ValidationRejectsBadPeriod(t *testing.T) {
 	}
 }
 
+func TestSLAComplianceHandler_WithOrg(t *testing.T) {
+	metrics.SetStore(metrics.NewMockStore())
+
+	req, err := http.NewRequest("GET", "/sla/compliance?org=test-org-1", nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(SLAComplianceHandler)
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200 for org filter, got %v", rr.Code)
+	}
+
+	var payload struct {
+		Compliance []models.SLAComplianceRow `json:"compliance"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if len(payload.Compliance) == 0 {
+		t.Fatalf("Expected at least one compliance row")
+	}
+	if payload.Compliance[0].Org == nil || *payload.Compliance[0].Org != "test-org-1" {
+		t.Fatalf("Expected org field to be present and match query, got %+v", payload.Compliance[0].Org)
+	}
+}
+
 func TestSLAComplianceHandler_PaginationRejectsInvalidPage(t *testing.T) {
 	metrics.SetStore(metrics.NewMockStore())
 

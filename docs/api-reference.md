@@ -5,9 +5,9 @@ All APIs start with `/api/`
 ### ClickHouse Platform Metrics APIs
 
 These endpoints are backed by ClickHouse views:
-- [`/api/gpu/metrics`](#get-apigpumetrics) -> `v_api_gpu_metrics`
-- [`/api/network/demand`](#get-apinetworkdemand) -> `v_api_network_demand`
-- [`/api/sla/compliance`](#get-apislacompliance) -> `v_api_sla_compliance`
+- [`/api/gpu/metrics`](#get-apigpumetrics) -> `v_api_gpu_metrics` (or `v_api_gpu_metrics_by_org` when `org` is provided)
+- [`/api/network/demand`](#get-apinetworkdemand) -> `v_api_network_demand` (or `v_api_network_demand_by_org` when `org` is provided)
+- [`/api/sla/compliance`](#get-apislacompliance) -> `v_api_sla_compliance` (or `v_api_sla_compliance_by_org` when `org` is provided)
 
 #### `GET /api/gpu/metrics`
 
@@ -22,6 +22,7 @@ These endpoints are backed by ClickHouse views:
 | `gpu_model_name` | Optional GPU model filter. |
 | `runner_version` | Optional runner version filter. |
 | `cuda_version` | Optional CUDA version filter. |
+| `org` | Optional organization filter. When present, data is read from `v_api_gpu_metrics_by_org`; otherwise from `v_api_gpu_metrics`. |
 | `page` | Page number (1-indexed). Default is `1`. |
 | `page_size` | Number of rows per page. Default is `50`, maximum is `500`. |
 
@@ -40,7 +41,7 @@ Response payload shape:
 
 | Field Group | Fields |
 |---|---|
-| Keys/Dimensions | `window_start`, `orchestrator_address`, `pipeline_id`, `model_id`, `gpu_id`, `region`, `gpu_model_name`, `gpu_memory_bytes_total`, `runner_version`, `cuda_version` |
+| Keys/Dimensions | `window_start`, `org` (when org-filtered), `orchestrator_address`, `pipeline_id`, `model_id`, `gpu_id`, `region`, `gpu_model_name`, `gpu_memory_bytes_total`, `runner_version`, `cuda_version` |
 | Performance/Latency | `avg_output_fps`, `p95_output_fps`, `fps_jitter_coefficient`, `avg_prompt_to_first_frame_ms`, `avg_startup_latency_ms`, `avg_e2e_latency_ms`, `p95_prompt_to_first_frame_latency_ms`, `p95_startup_latency_ms`, `p95_e2e_latency_ms` |
 | Valid Counts | `prompt_to_first_frame_sample_count`, `startup_latency_sample_count`, `e2e_latency_sample_count`, `status_samples`, `error_status_samples` |
 | Reliability | `known_sessions_count`, `startup_success_sessions`, `startup_excused_sessions`, `startup_unexcused_sessions`, `confirmed_swapped_sessions`, `inferred_swap_sessions`, `total_swapped_sessions`, `sessions_ending_in_error`, `health_signal_coverage_ratio` |
@@ -48,6 +49,7 @@ Response payload shape:
 
 Contract notes:
 - Grain: one row per `(window_start hour, orchestrator_address, pipeline_id, model_id, gpu_id, region)`.
+- When `org` is provided, results are scoped to that org and include the `org` field in row payloads.
 - `total_swapped_sessions` is the union of `confirmed_swapped_sessions` and `inferred_swap_sessions`.
 - `startup_unexcused_rate = startup_unexcused_sessions / known_sessions_count` (returns `0` when denominator is `0`).
 - `swap_rate = total_swapped_sessions / known_sessions_count` (returns `0` when denominator is `0`).
@@ -62,6 +64,7 @@ Contract notes:
 | `region` | Optional region filter. |
 | `pipeline_id` | Optional pipeline filter. |
 | `model_id` | Optional model filter. |
+| `org` | Optional organization filter. When present, data is read from `v_api_network_demand_by_org`; otherwise from `v_api_network_demand`. |
 | `page` | Page number (1-indexed). Default is `1`. |
 | `page_size` | Number of rows per page. Default is `50`, maximum is `500`. |
 
@@ -80,13 +83,14 @@ Response payload shape:
 
 | Field Group | Fields |
 |---|---|
-| Keys/Dimensions | `window_start`, `gateway`, `region`, `pipeline_id`, `model_id` |
+| Keys/Dimensions | `window_start`, `org` (when org-filtered), `gateway`, `region`, `pipeline_id`, `model_id` |
 | Demand/Capacity | `sessions_count`, `total_minutes`, `known_sessions_count`, `served_sessions`, `unserved_sessions`, `total_demand_sessions` |
 | Reliability | `startup_unexcused_sessions`, `confirmed_swapped_sessions`, `inferred_swap_sessions`, `total_swapped_sessions`, `sessions_ending_in_error`, `error_status_samples`, `health_signal_coverage_ratio`, `startup_success_rate`, `effective_success_rate` |
 | Economics | `ticket_face_value_eth` |
 
 Contract notes:
 - Grain: one row per `(window_start hour, gateway, region, pipeline_id, model_id)`.
+- When `org` is provided, results are scoped to that org and include the `org` field in row payloads.
 - `total_demand_sessions = served_sessions + unserved_sessions`.
 - `total_swapped_sessions` is the union of `confirmed_swapped_sessions` and `inferred_swap_sessions`.
 - `startup_success_rate` is startup-only success and tracks startup contract reliability.
@@ -102,6 +106,7 @@ Contract notes:
 | `model_id` | Optional model filter. |
 | `gpu_id` | Optional GPU ID filter. |
 | `region` | Optional region filter. |
+| `org` | Optional organization filter. When present, data is read from `v_api_sla_compliance_by_org`; otherwise from `v_api_sla_compliance`. |
 | `page` | Page number (1-indexed). Default is `1`. |
 | `page_size` | Number of rows per page. Default is `50`, maximum is `500`. |
 
@@ -120,12 +125,13 @@ Response payload shape:
 
 | Field Group | Fields |
 |---|---|
-| Keys/Dimensions | `window_start`, `orchestrator_address`, `pipeline_id`, `model_id`, `gpu_id`, `region` |
+| Keys/Dimensions | `window_start`, `org` (when org-filtered), `orchestrator_address`, `pipeline_id`, `model_id`, `gpu_id`, `region` |
 | Reliability | `known_sessions_count`, `startup_success_sessions`, `startup_excused_sessions`, `startup_unexcused_sessions`, `confirmed_swapped_sessions`, `inferred_swap_sessions`, `total_swapped_sessions`, `sessions_ending_in_error`, `error_status_samples`, `health_signal_coverage_ratio`, `startup_success_rate` |
 | SLA Scores | `effective_success_rate`, `no_swap_rate`, `sla_score` |
 
 Contract notes:
 - Grain: one row per attributed `(window_start hour, orchestrator_address, pipeline_id, model_id, gpu_id, region)`.
+- When `org` is provided, results are scoped to that org and include the `org` field in row payloads.
 - `total_swapped_sessions` is the union of `confirmed_swapped_sessions` and `inferred_swap_sessions`.
 - `startup_success_rate` is startup-only success and should be used for startup SLA interpretation.
 - `effective_success_rate` is effective output viability aligned with demand semantics.

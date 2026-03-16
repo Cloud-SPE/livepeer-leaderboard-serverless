@@ -13,6 +13,7 @@ type Pagination struct {
 // --- GPU Metrics (v_api_gpu_metrics) ---
 
 type GPUMetricsQuery struct {
+	Org                 string
 	OrchestratorAddress string
 	PipelineID          string
 	ModelID             string
@@ -27,6 +28,7 @@ type GPUMetricsQuery struct {
 
 type GPUMetric struct {
 	WindowStart               time.Time `json:"window_start"`
+	Org                       *string   `json:"org,omitempty"`
 	OrchestratorAddress       string    `json:"orchestrator_address"`
 	PipelineID                string    `json:"pipeline_id"`
 	ModelID                   *string   `json:"model_id"`
@@ -76,6 +78,7 @@ type GPUMetric struct {
 // --- Network Demand (v_api_network_demand) ---
 
 type NetworkDemandQuery struct {
+	Org        string
 	Gateway    string
 	Region     string
 	PipelineID string
@@ -86,6 +89,7 @@ type NetworkDemandQuery struct {
 
 type NetworkDemandRow struct {
 	WindowStart               time.Time `json:"window_start"`
+	Org                       *string   `json:"org,omitempty"`
 	Gateway                   string    `json:"gateway"`
 	Region                    *string   `json:"region"`
 	PipelineID                string    `json:"pipeline_id"`
@@ -112,6 +116,7 @@ type NetworkDemandRow struct {
 // --- SLA Compliance (v_api_sla_compliance) ---
 
 type SLAComplianceQuery struct {
+	Org                 string
 	OrchestratorAddress string
 	Region              string
 	PipelineID          string
@@ -123,6 +128,7 @@ type SLAComplianceQuery struct {
 
 type SLAComplianceRow struct {
 	WindowStart               time.Time `json:"window_start"`
+	Org                       *string   `json:"org,omitempty"`
 	OrchestratorAddress       string    `json:"orchestrator_address"`
 	PipelineID                string    `json:"pipeline_id"`
 	ModelID                   *string   `json:"model_id"`

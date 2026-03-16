@@ -87,7 +87,7 @@ func TestNetworkDemandHandler(t *testing.T) {
 func TestNetworkDemandHandler_ValidationRejectsBadDuration(t *testing.T) {
 	metrics.SetStore(metrics.NewMockStore())
 
-	req, err := http.NewRequest("GET", "/network/demand?interval=48h", nil)
+	req, err := http.NewRequest("GET", "/network/demand?interval=49h", nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
@@ -98,6 +98,37 @@ func TestNetworkDemandHandler_ValidationRejectsBadDuration(t *testing.T) {
 
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("Expected 400 for out-of-range interval, got %v", rr.Code)
+	}
+}
+
+func TestNetworkDemandHandler_WithOrg(t *testing.T) {
+	metrics.SetStore(metrics.NewMockStore())
+
+	req, err := http.NewRequest("GET", "/network/demand?org=test-org-1", nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(NetworkDemandHandler)
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200 for org filter, got %v", rr.Code)
+	}
+
+	var payload struct {
+		Demand []models.NetworkDemandRow `json:"demand"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if len(payload.Demand) == 0 {
+		t.Fatalf("Expected at least one demand row")
+	}
+	if payload.Demand[0].Org == nil || *payload.Demand[0].Org != "test-org-1" {
+		t.Fatalf("Expected org field to be present and match query, got %+v", payload.Demand[0].Org)
 	}
 }
 
