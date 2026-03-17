@@ -2,6 +2,22 @@
 
 All APIs start with `/api/`
 
+#### `GET /api/health`
+
+Returns the readiness status of both Postgres and ClickHouse. Returns `200` if both are healthy, `503` otherwise.
+
+Response payload shape:
+```json
+{
+  "postgres":   { "ok": true },
+  "clickhouse": { "ok": false, "error": "connection failed" }
+}
+```
+
+Each component includes an `error` field only when `ok` is `false`.
+
+---
+
 ### ClickHouse Platform Metrics APIs
 
 These endpoints are backed by ClickHouse views:
@@ -141,6 +157,29 @@ Contract notes:
 
 GPU row behavior note:
 - True rollover tail artifacts are filtered using current-hour + previous-hour no-work guards; same-hour failed/no-output attempts are retained.
+
+#### `GET /api/top_ai_score?orchestrator=<orchAddr>`
+
+Returns the top regional AI score for a given orchestrator — the best-performing region, model, and pipeline combination based on aggregated stats.
+
+| Parameter | Description |
+|---|---|
+| `orchestrator` | The orchestrator address to look up. Required. |
+
+Response payload shape:
+```json
+{
+  "orchestrator": "0x...",
+  "region": "MDW",
+  "value": 0.94,
+  "model": "stabilityai/stable-diffusion-xl-base-1.0",
+  "pipeline": "text-to-image"
+}
+```
+
+Returns `{}` if no stats are found for the given orchestrator.
+
+---
 
 #### `GET /api/aggregated_stats?orchestrator=<orchAddr>&region=<region_code>&since=<timestamp>&until=<timestamp>`
 

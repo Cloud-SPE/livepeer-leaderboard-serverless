@@ -8,11 +8,12 @@ see [figure 1](#figure-1---logical-overview-of-livepeers-testing).
 ### Key Features Supported
 * APIs support POST (submit new test job statistics) and GET (query test job statistics).
   * Includes Raw Stats - query every job test results.
-  * Includes Aggregated Stats - query the aggregated raw stats  
+  * Includes Aggregated Stats - query the aggregated raw stats
 * Supports AI and Transcoding Test Job Types.
 * Uses Postgres for data storage.
 * Has a database migration tool to support different applications upgrades.
 * Deploy using Docker or Binaries.
+* ClickHouse-backed platform metrics endpoints (`/api/gpu/metrics`, `/api/network/demand`, `/api/sla/compliance`) with pagination support (default 50 rows, max 500 rows per page).
 
 The serverless functions can be deployed using `vercel-cli` or self-hosted. 
 
@@ -147,7 +148,7 @@ Make sure you can connect to the database url defined with proper user and passw
 Tests can be run with the following command in the project root:
 
 ```
-go build && go test -p 1-v ./...
+go build && go test -p 1 -v ./...
 ```
 
 Since we use an emebedded database for the entire test run between packages, test packages must be run one at a time (-p 1 flag). 

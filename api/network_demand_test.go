@@ -165,3 +165,37 @@ func TestNetworkDemandHandler_PaginationRejectsInvalidPageSize(t *testing.T) {
 		t.Fatalf("Expected 400 for page_size=501, got %v", rr.Code)
 	}
 }
+
+func TestNetworkDemandHandler_PaginationAcceptsMaxPageSize(t *testing.T) {
+	metrics.SetStore(metrics.NewMockStore())
+
+	req, err := http.NewRequest("GET", "/network/demand?page_size=500", nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(NetworkDemandHandler)
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200 for page_size=500, got %v", rr.Code)
+	}
+}
+
+func TestNetworkDemandHandler_AllowsMaxInterval(t *testing.T) {
+	metrics.SetStore(metrics.NewMockStore())
+
+	req, err := http.NewRequest("GET", "/network/demand?interval=48h", nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(NetworkDemandHandler)
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200 for interval=48h, got %v", rr.Code)
+	}
+}

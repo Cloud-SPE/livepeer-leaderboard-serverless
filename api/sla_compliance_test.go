@@ -162,3 +162,54 @@ func TestSLAComplianceHandler_PaginationRejectsInvalidPageSize(t *testing.T) {
 		t.Fatalf("Expected 400 for page_size=501, got %v", rr.Code)
 	}
 }
+
+func TestSLAComplianceHandler_PaginationAcceptsMaxPageSize(t *testing.T) {
+	metrics.SetStore(metrics.NewMockStore())
+
+	req, err := http.NewRequest("GET", "/sla/compliance?page_size=500", nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(SLAComplianceHandler)
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200 for page_size=500, got %v", rr.Code)
+	}
+}
+
+func TestSLAComplianceHandler_Allows48hPeriod(t *testing.T) {
+	metrics.SetStore(metrics.NewMockStore())
+
+	req, err := http.NewRequest("GET", "/sla/compliance?period=48h", nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(SLAComplianceHandler)
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200 for period=48h, got %v", rr.Code)
+	}
+}
+
+func TestSLAComplianceHandler_Allows72hPeriod(t *testing.T) {
+	metrics.SetStore(metrics.NewMockStore())
+
+	req, err := http.NewRequest("GET", "/sla/compliance?period=72h", nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(SLAComplianceHandler)
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200 for period=72h, got %v", rr.Code)
+	}
+}
