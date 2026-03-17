@@ -133,7 +133,9 @@ You will see similar JSON output:
 }
 ```
 
-### Troubleshooting Tip
+### Troubleshooting
+
+#### Postgres connection errors
 
 If your `POSTGRES` environment variable is misconfigured, you may see an error like this:
 
@@ -142,6 +144,27 @@ failed to connect to `host=localhost user=leaderboard database=leaderboard`: dia
 ```
 
 Make sure you can connect to the database url defined with proper user and password credentials.
+
+#### Silent 503s on platform metrics endpoints
+
+If `/api/gpu/metrics`, `/api/network/demand`, or `/api/sla/compliance` return `503 Service Unavailable` with no further detail, the most common cause is missing or incorrect ClickHouse environment variables. These endpoints fail silently with a 503 rather than logging a startup error.
+
+Use the health endpoint to diagnose which component is down:
+
+```
+GET /api/health
+```
+
+Example response when ClickHouse is unreachable:
+
+```json
+{
+  "postgres":   { "ok": true },
+  "clickhouse": { "ok": false, "error": "connection failed" }
+}
+```
+
+Check that all six ClickHouse environment variables are set correctly (see [ClickHouse env vars](#clickhouse-required-for-platform-metrics-endpoints) above).
 
 ### Running The Unit Tests
 
