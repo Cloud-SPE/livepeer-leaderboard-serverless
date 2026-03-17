@@ -13,6 +13,10 @@ RUN go mod download
 # Copy the entire project to the working directory
 COPY . .
 
+# Run tests — build fails if any test fails.
+# The -p 1 flag is required because packages share an embedded Postgres instance.
+RUN go test -p 1 ./...
+
 # Build the Go app and output it to the 'app' binary
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o serverless-api main.go
 

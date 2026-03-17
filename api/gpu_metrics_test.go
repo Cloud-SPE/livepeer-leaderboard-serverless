@@ -213,3 +213,25 @@ func TestGPUMetricsHandler_Allows48hDuration(t *testing.T) {
 		t.Fatalf("Expected 200 for time_range=48h, got %v", rr.Code)
 	}
 }
+
+func TestGPUMetricsHandler_ClickhouseUnavailable503(t *testing.T) {
+	// Store nil directly — SetStore guards against nil assignment.
+	// With Store=nil and no CLICKHOUSE_HOST env var, CacheCH() returns an error
+	// and requireClickhouse() responds with 503.
+	oldStore := metrics.Store
+	metrics.Store = nil
+	defer func() { metrics.Store = oldStore }()
+
+	req, err := http.NewRequest("GET", "/gpu/metrics?time_range=1h", nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(GPUMetricsHandler)
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Fatalf("Expected 503 when ClickHouse is unavailable, got %v", rr.Code)
+	}
+}

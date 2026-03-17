@@ -199,3 +199,50 @@ func TestNetworkDemandHandler_AllowsMaxInterval(t *testing.T) {
 		t.Fatalf("Expected 200 for interval=48h, got %v", rr.Code)
 	}
 }
+
+func TestNetworkDemandHandler_FiltersByModelID(t *testing.T) {
+	metrics.SetStore(metrics.NewMockStore())
+
+	req, err := http.NewRequest("GET", "/network/demand?model_id=my-custom-model", nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(NetworkDemandHandler)
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200 for model_id filter, got %v", rr.Code)
+	}
+
+	var payload struct {
+		Demand []models.NetworkDemandRow `json:"demand"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+	if len(payload.Demand) == 0 {
+		t.Fatalf("Expected at least one demand row")
+	}
+	if payload.Demand[0].ModelID == nil || *payload.Demand[0].ModelID != "my-custom-model" {
+		t.Fatalf("Expected model_id to be filtered to 'my-custom-model', got %+v", payload.Demand[0].ModelID)
+	}
+}
+
+func TestNetworkDemandHandler_UnknownParamIgnored(t *testing.T) {
+	metrics.SetStore(metrics.NewMockStore())
+
+	req, err := http.NewRequest("GET", "/network/demand?interval=15m&unknown_param=foo", nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(NetworkDemandHandler)
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200 when unknown query params are present, got %v", rr.Code)
+	}
+}

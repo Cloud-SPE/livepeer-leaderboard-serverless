@@ -171,10 +171,10 @@ Check that all six ClickHouse environment variables are set correctly (see [Clic
 Tests can be run with the following command in the project root:
 
 ```
-go build && go test -p 1 -v ./...
+go build && go test -p 1 -race -v ./...
 ```
 
-Since we use an emebedded database for the entire test run between packages, test packages must be run one at a time (-p 1 flag). 
+Since we use an embedded database for the entire test run between packages, test packages must be run one at a time (`-p 1` flag). The `-race` flag is required to detect data races in concurrent initialization tests (e.g. `TestCacheCH_ConcurrentInit`).
 
 See [embedded-postgres issue #115](https://github.com/fergusstrange/embedded-postgres/issues/115) for more details.
 
