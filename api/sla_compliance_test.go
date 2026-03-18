@@ -13,7 +13,7 @@ import (
 func TestSLAComplianceHandler(t *testing.T) {
 	metrics.SetStore(metrics.NewMockStore())
 
-	req, err := http.NewRequest("GET", "/sla/compliance?orchestrator_address=0x5263e0ce3a97b634d8828ce4337ad0f70b30b077&pipeline_id=streamdiffusion-sdxl&period=24h", nil)
+	req, err := http.NewRequest("GET", "/sla/compliance?orchestrator_address=0x5263e0ce3a97b634d8828ce4337ad0f70b30b077&pipeline_id=streamdiffusion-sdxl&window=24h", nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
@@ -84,7 +84,7 @@ func TestSLAComplianceHandler(t *testing.T) {
 func TestSLAComplianceHandler_ValidationRejectsBadPeriod(t *testing.T) {
 	metrics.SetStore(metrics.NewMockStore())
 
-	req, err := http.NewRequest("GET", "/sla/compliance?period=5m", nil)
+	req, err := http.NewRequest("GET", "/sla/compliance?window=5m", nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestSLAComplianceHandler_ValidationRejectsBadPeriod(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
-		t.Fatalf("Expected 400 for period below 1h, got %v", rr.Code)
+		t.Fatalf("Expected 400 for window below 1h, got %v", rr.Code)
 	}
 }
 
@@ -183,7 +183,7 @@ func TestSLAComplianceHandler_PaginationAcceptsMaxPageSize(t *testing.T) {
 func TestSLAComplianceHandler_Allows48hPeriod(t *testing.T) {
 	metrics.SetStore(metrics.NewMockStore())
 
-	req, err := http.NewRequest("GET", "/sla/compliance?period=48h", nil)
+	req, err := http.NewRequest("GET", "/sla/compliance?window=48h", nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
@@ -193,14 +193,14 @@ func TestSLAComplianceHandler_Allows48hPeriod(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
-		t.Fatalf("Expected 200 for period=48h, got %v", rr.Code)
+		t.Fatalf("Expected 200 for window=48h, got %v", rr.Code)
 	}
 }
 
 func TestSLAComplianceHandler_Allows72hPeriod(t *testing.T) {
 	metrics.SetStore(metrics.NewMockStore())
 
-	req, err := http.NewRequest("GET", "/sla/compliance?period=72h", nil)
+	req, err := http.NewRequest("GET", "/sla/compliance?window=72h", nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
@@ -210,6 +210,6 @@ func TestSLAComplianceHandler_Allows72hPeriod(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
-		t.Fatalf("Expected 200 for period=72h, got %v", rr.Code)
+		t.Fatalf("Expected 200 for window=72h, got %v", rr.Code)
 	}
 }

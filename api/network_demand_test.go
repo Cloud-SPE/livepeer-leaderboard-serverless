@@ -13,7 +13,7 @@ import (
 func TestNetworkDemandHandler(t *testing.T) {
 	metrics.SetStore(metrics.NewMockStore())
 
-	req, err := http.NewRequest("GET", "/network/demand?gateway=cloud-spe-ai-live-video-tester-mdw&pipeline_id=streamdiffusion-sdxl&model_id=streamdiffusion-sdxl&interval=15m", nil)
+	req, err := http.NewRequest("GET", "/network/demand?gateway=cloud-spe-ai-live-video-tester-mdw&pipeline_id=streamdiffusion-sdxl&model_id=streamdiffusion-sdxl&window=3h", nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestNetworkDemandHandler(t *testing.T) {
 func TestNetworkDemandHandler_ValidationRejectsBadDuration(t *testing.T) {
 	metrics.SetStore(metrics.NewMockStore())
 
-	req, err := http.NewRequest("GET", "/network/demand?interval=49h", nil)
+	req, err := http.NewRequest("GET", "/network/demand?window=721h", nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
@@ -97,7 +97,7 @@ func TestNetworkDemandHandler_ValidationRejectsBadDuration(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
-		t.Fatalf("Expected 400 for out-of-range interval, got %v", rr.Code)
+		t.Fatalf("Expected 400 for out-of-range window, got %v", rr.Code)
 	}
 }
 
@@ -183,10 +183,10 @@ func TestNetworkDemandHandler_PaginationAcceptsMaxPageSize(t *testing.T) {
 	}
 }
 
-func TestNetworkDemandHandler_AllowsMaxInterval(t *testing.T) {
+func TestNetworkDemandHandler_AllowsMaxWindow(t *testing.T) {
 	metrics.SetStore(metrics.NewMockStore())
 
-	req, err := http.NewRequest("GET", "/network/demand?interval=48h", nil)
+	req, err := http.NewRequest("GET", "/network/demand?window=48h", nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
@@ -196,7 +196,7 @@ func TestNetworkDemandHandler_AllowsMaxInterval(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
-		t.Fatalf("Expected 200 for interval=48h, got %v", rr.Code)
+		t.Fatalf("Expected 200 for window=48h, got %v", rr.Code)
 	}
 }
 
@@ -230,10 +230,39 @@ func TestNetworkDemandHandler_FiltersByModelID(t *testing.T) {
 	}
 }
 
+// TestNetworkDemandHandler_WindowIsDirectLookback documents the fix for the former
+// interval×12 multiplier bug. window=1h must return data for the last 1 hour, not 12 hours.
+func TestNetworkDemandHandler_WindowIsDirectLookback(t *testing.T) {
+	metrics.SetStore(metrics.NewMockStore())
+
+	req, err := http.NewRequest("GET", "/network/demand?window=1h", nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(NetworkDemandHandler)
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200 for window=1h, got %v: %s", rr.Code, rr.Body.String())
+	}
+
+	var payload struct {
+		Demand []models.NetworkDemandRow `json:"demand"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+	if len(payload.Demand) == 0 {
+		t.Fatalf("Expected demand rows for window=1h")
+	}
+}
+
 func TestNetworkDemandHandler_UnknownParamIgnored(t *testing.T) {
 	metrics.SetStore(metrics.NewMockStore())
 
-	req, err := http.NewRequest("GET", "/network/demand?interval=15m&unknown_param=foo", nil)
+	req, err := http.NewRequest("GET", "/network/demand?window=3h&unknown_param=foo", nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}

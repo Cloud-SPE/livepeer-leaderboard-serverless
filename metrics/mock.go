@@ -98,10 +98,11 @@ func (m *MockStore) GPUMetricsCount(_ *models.GPUMetricsQuery) (int, error) {
 
 func (m *MockStore) NetworkDemand(query *models.NetworkDemandQuery) ([]*models.NetworkDemandRow, error) {
 	now := time.Now().UTC()
-	interval := query.Interval
-	if interval <= 0 {
-		interval = 15 * time.Minute
+	window := query.Window
+	if window <= 0 {
+		window = 3 * time.Hour
 	}
+	slotSize := window / 12
 
 	gateway := "cloud-spe-ai-live-video-tester-mdw"
 	if query.Gateway != "" {
@@ -120,7 +121,7 @@ func (m *MockStore) NetworkDemand(query *models.NetworkDemandQuery) ([]*models.N
 	rows := make([]*models.NetworkDemandRow, 0, 12)
 	for i := 11; i >= 0; i-- {
 		rows = append(rows, &models.NetworkDemandRow{
-			WindowStart:               now.Add(-time.Duration(i) * interval),
+			WindowStart:               now.Add(-time.Duration(i) * slotSize),
 			Org:                       org,
 			Gateway:                   gateway,
 			Region:                    nilIfEmpty(query.Region),
@@ -154,9 +155,9 @@ func (m *MockStore) NetworkDemandCount(_ *models.NetworkDemandQuery) (int, error
 
 func (m *MockStore) SLACompliance(query *models.SLAComplianceQuery) ([]*models.SLAComplianceRow, error) {
 	now := time.Now().UTC()
-	period := query.Period
-	if period <= 0 {
-		period = 24 * time.Hour
+	window := query.Window
+	if window <= 0 {
+		window = 24 * time.Hour
 	}
 
 	orchAddr := "0x5263e0ce3a97b634d8828ce4337ad0f70b30b077"
@@ -184,7 +185,7 @@ func (m *MockStore) SLACompliance(query *models.SLAComplianceQuery) ([]*models.S
 
 	rows := []*models.SLAComplianceRow{
 		{
-			WindowStart:               now.Add(-period),
+			WindowStart:               now.Add(-window),
 			Org:                       org,
 			OrchestratorAddress:       orchAddr,
 			PipelineID:                pipelineID,

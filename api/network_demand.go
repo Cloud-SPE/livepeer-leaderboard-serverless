@@ -19,12 +19,12 @@ func NetworkDemandHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	interval, err := common.ParseDurationParam(r, "interval", 15*time.Minute)
+	window, err := common.ParseDurationParam(r, "window", 3*time.Hour)
 	if err != nil {
 		common.HandleBadRequest(w, err)
 		return
 	}
-	if err := common.ValidateDuration("interval", interval, time.Minute, 48*time.Hour); err != nil {
+	if err := common.ValidateDuration("window", window, time.Minute, 30*24*time.Hour); err != nil {
 		common.HandleBadRequest(w, err)
 		return
 	}
@@ -66,7 +66,7 @@ func NetworkDemandHandler(w http.ResponseWriter, r *http.Request) {
 		Region:     region,
 		PipelineID: pipelineID,
 		ModelID:    modelID,
-		Interval:   interval,
+		Window:     window,
 		Pagination: models.Pagination{Page: page, PageSize: pageSize},
 	}
 

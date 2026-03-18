@@ -22,7 +22,7 @@ type GPUMetricsQuery struct {
 	GPUModelName        string
 	RunnerVersion       string
 	CudaVersion         string
-	TimeRange           time.Duration
+	Window              time.Duration
 	Pagination          Pagination
 }
 
@@ -83,7 +83,7 @@ type NetworkDemandQuery struct {
 	Region     string
 	PipelineID string
 	ModelID    string
-	Interval   time.Duration
+	Window     time.Duration
 	Pagination Pagination
 }
 
@@ -122,7 +122,7 @@ type SLAComplianceQuery struct {
 	PipelineID          string
 	ModelID             string
 	GPUID               string
-	Period              time.Duration
+	Window              time.Duration
 	Pagination          Pagination
 }
 
