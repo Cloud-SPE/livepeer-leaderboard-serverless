@@ -25,11 +25,15 @@ These endpoints are backed by ClickHouse views:
 - [`/api/network/demand`](#get-apinetworkdemand) -> `v_api_network_demand` (or `v_api_network_demand_by_org` when `org` is provided)
 - [`/api/sla/compliance`](#get-apislacompliance) -> `v_api_sla_compliance` (or `v_api_sla_compliance_by_org` when `org` is provided)
 
+**Time window semantics**: All three endpoints share a unified `window` parameter that controls the lookback duration. Data from `[now - window, now]` is returned. For example, `window=3h` returns the last 3 hours of data.
+
+**Valid `window` formats**: Go duration strings — e.g. `1m`, `30m`, `1h`, `6h`, `24h`, `7d`, `30d`. Numeric seconds are also accepted — e.g. `3600` for 1 hour.
+
 #### `GET /api/gpu/metrics`
 
 | Parameter | Description |
 |---|---|
-| `time_range` | Duration window to query. Default is `24h`, minimum is `1m`, maximum is `72h`. |
+| `window` | Lookback duration. Data from `[now - window, now]` is returned. Default is `24h`, minimum is `1m`, maximum is `72h`. |
 | `orchestrator_address` | Optional orchestrator address filter. |
 | `pipeline_id` | Optional pipeline filter. |
 | `model_id` | Optional model filter. |
@@ -71,11 +75,30 @@ Contract notes:
 - `swap_rate = total_swapped_sessions / known_sessions_count` (returns `0` when denominator is `0`).
 - Latency fields are nullable and may be `null` when no valid samples exist for the bucket.
 
+#### Example Requests
+
+```bash
+# Default window (last 24h, all orchestrators)
+curl "https://leaderboard-serverless.vercel.app/api/gpu/metrics"
+
+# Realtime slice — last 1 hour
+curl "https://leaderboard-serverless.vercel.app/api/gpu/metrics?window=1h"
+
+# Extended 72h analysis filtered by orchestrator and pipeline
+curl "https://leaderboard-serverless.vercel.app/api/gpu/metrics?window=72h&orchestrator_address=0xABC...&pipeline_id=text-to-image"
+
+# Org-scoped daily view with custom page size
+curl "https://leaderboard-serverless.vercel.app/api/gpu/metrics?window=24h&org=my-org&page=1&page_size=100"
+
+# Filter by region for regional performance analysis
+curl "https://leaderboard-serverless.vercel.app/api/gpu/metrics?window=24h&region=MDW"
+```
+
 #### `GET /api/network/demand`
 
 | Parameter | Description |
 |---|---|
-| `interval` | Aggregation interval duration. Default is `15m`, minimum is `1m`, maximum is `48h`. |
+| `window` | Lookback duration. Data from `[now - window, now]` is returned. Default is `3h`, minimum is `1m`, maximum is `30d`. |
 | `gateway` | Optional gateway filter. |
 | `region` | Optional region filter. |
 | `pipeline_id` | Optional pipeline filter. |
@@ -112,11 +135,30 @@ Contract notes:
 - `startup_success_rate` is startup-only success and tracks startup contract reliability.
 - `effective_success_rate` is effective output viability (not startup-only) and can include startup-unexcused and no-output behaviors.
 
+#### Example Requests
+
+```bash
+# Default window (last 3h, all gateways)
+curl "https://leaderboard-serverless.vercel.app/api/network/demand"
+
+# High-frequency recent slice — last 30 minutes
+curl "https://leaderboard-serverless.vercel.app/api/network/demand?window=30m"
+
+# Weekly trend filtered by pipeline and model
+curl "https://leaderboard-serverless.vercel.app/api/network/demand?window=7d&pipeline_id=text-to-image&model_id=stable-diffusion-xl"
+
+# Monthly lookback (max window) filtered by gateway
+curl "https://leaderboard-serverless.vercel.app/api/network/demand?window=30d&gateway=cloud-spe-ai-live-video-tester-mdw"
+
+# Org-scoped daily view
+curl "https://leaderboard-serverless.vercel.app/api/network/demand?window=24h&org=my-org"
+```
+
 #### `GET /api/sla/compliance`
 
 | Parameter | Description |
 |---|---|
-| `period` | Duration window to query. Default is `24h`, minimum is `1h`, maximum is `30d`. |
+| `window` | Lookback duration. Data from `[now - window, now]` is returned. Default is `24h`, minimum is `1h`, maximum is `30d`. |
 | `orchestrator_address` | Optional orchestrator address filter. |
 | `pipeline_id` | Optional pipeline filter. |
 | `model_id` | Optional model filter. |
@@ -154,6 +196,25 @@ Contract notes:
 - `no_swap_rate = 1 - (total_swapped_sessions / known_sessions_count)` (returns `0` when denominator is `0`).
 - `sla_score` weighting is defined by the upstream view contract and may change with metric hardening.
 - Tail artifact suppression is stricter for true rollover cleanup hours, while same-hour failed/no-output sessions are retained for observability.
+
+#### Example Requests
+
+```bash
+# Default window (last 24h, all orchestrators)
+curl "https://leaderboard-serverless.vercel.app/api/sla/compliance"
+
+# Weekly SLA report for a specific orchestrator
+curl "https://leaderboard-serverless.vercel.app/api/sla/compliance?window=7d&orchestrator_address=0xABC..."
+
+# Monthly SLA report (max window) — full 30-day view
+curl "https://leaderboard-serverless.vercel.app/api/sla/compliance?window=30d"
+
+# Daily compliance filtered by pipeline, model, and region
+curl "https://leaderboard-serverless.vercel.app/api/sla/compliance?window=24h&pipeline_id=text-to-image&model_id=stable-diffusion-xl&region=MDW"
+
+# Org-scoped monthly SLA rollup
+curl "https://leaderboard-serverless.vercel.app/api/sla/compliance?window=30d&org=my-org"
+```
 
 GPU row behavior note:
 - True rollover tail artifacts are filtered using current-hour + previous-hour no-work guards; same-hour failed/no-output attempts are retained.

@@ -19,12 +19,12 @@ func SLAComplianceHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	period, err := common.ParseDurationParam(r, "period", 24*time.Hour)
+	window, err := common.ParseDurationParam(r, "window", 24*time.Hour)
 	if err != nil {
 		common.HandleBadRequest(w, err)
 		return
 	}
-	if err := common.ValidateDuration("period", period, time.Hour, 30*24*time.Hour); err != nil {
+	if err := common.ValidateDuration("window", window, time.Hour, 30*24*time.Hour); err != nil {
 		common.HandleBadRequest(w, err)
 		return
 	}
@@ -73,7 +73,7 @@ func SLAComplianceHandler(w http.ResponseWriter, r *http.Request) {
 		PipelineID:          pipelineID,
 		ModelID:             modelID,
 		GPUID:               gpuID,
-		Period:              period,
+		Window:              window,
 		Pagination:          models.Pagination{Page: page, PageSize: pageSize},
 	}
 

@@ -13,7 +13,7 @@ import (
 func TestGPUMetricsHandler(t *testing.T) {
 	metrics.SetStore(metrics.NewMockStore())
 
-	req, err := http.NewRequest("GET", "/gpu/metrics?orchestrator_address=0x0abe02f6ef1fa8c29f9b3f9f170c6f3681fd3031&pipeline_id=streamdiffusion-sdxl-v2v&time_range=1h", nil)
+	req, err := http.NewRequest("GET", "/gpu/metrics?orchestrator_address=0x0abe02f6ef1fa8c29f9b3f9f170c6f3681fd3031&pipeline_id=streamdiffusion-sdxl-v2v&window=1h", nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
@@ -84,7 +84,7 @@ func TestGPUMetricsHandler(t *testing.T) {
 func TestGPUMetricsHandler_ValidationRejectsBadDuration(t *testing.T) {
 	metrics.SetStore(metrics.NewMockStore())
 
-	req, err := http.NewRequest("GET", "/gpu/metrics?time_range=96h", nil)
+	req, err := http.NewRequest("GET", "/gpu/metrics?window=96h", nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
@@ -94,14 +94,14 @@ func TestGPUMetricsHandler_ValidationRejectsBadDuration(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
-		t.Fatalf("Expected 400 for out-of-range time_range, got %v", rr.Code)
+		t.Fatalf("Expected 400 for out-of-range window, got %v", rr.Code)
 	}
 }
 
 func TestGPUMetricsHandler_AllowsExtendedDuration(t *testing.T) {
 	metrics.SetStore(metrics.NewMockStore())
 
-	req, err := http.NewRequest("GET", "/gpu/metrics?time_range=72h", nil)
+	req, err := http.NewRequest("GET", "/gpu/metrics?window=72h", nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestGPUMetricsHandler_AllowsExtendedDuration(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
-		t.Fatalf("Expected 200 for time_range=72h, got %v", rr.Code)
+		t.Fatalf("Expected 200 for window=72h, got %v", rr.Code)
 	}
 }
 
@@ -200,7 +200,7 @@ func TestGPUMetricsHandler_PaginationAcceptsMaxPageSize(t *testing.T) {
 func TestGPUMetricsHandler_Allows48hDuration(t *testing.T) {
 	metrics.SetStore(metrics.NewMockStore())
 
-	req, err := http.NewRequest("GET", "/gpu/metrics?time_range=48h", nil)
+	req, err := http.NewRequest("GET", "/gpu/metrics?window=48h", nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
@@ -210,7 +210,7 @@ func TestGPUMetricsHandler_Allows48hDuration(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
-		t.Fatalf("Expected 200 for time_range=48h, got %v", rr.Code)
+		t.Fatalf("Expected 200 for window=48h, got %v", rr.Code)
 	}
 }
 
@@ -222,7 +222,7 @@ func TestGPUMetricsHandler_ClickhouseUnavailable503(t *testing.T) {
 	metrics.Store = nil
 	defer func() { metrics.Store = oldStore }()
 
-	req, err := http.NewRequest("GET", "/gpu/metrics?time_range=1h", nil)
+	req, err := http.NewRequest("GET", "/gpu/metrics?window=1h", nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}

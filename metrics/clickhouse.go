@@ -62,11 +62,11 @@ func (s *ClickhouseStore) GPUMetrics(query *models.GPUMetricsQuery) ([]*models.G
 	}
 
 	end := time.Now().UTC()
-	timeRange := query.TimeRange
-	if timeRange <= 0 {
-		timeRange = 24 * time.Hour
+	window := query.Window
+	if window <= 0 {
+		window = 24 * time.Hour
 	}
-	start := end.Add(-timeRange)
+	start := end.Add(-window)
 	viewName := "v_api_gpu_metrics"
 	orgSelect := "CAST(NULL AS Nullable(String)) AS org"
 	useOrgView := query.Org != ""
@@ -229,11 +229,11 @@ func (s *ClickhouseStore) GPUMetricsCount(query *models.GPUMetricsQuery) (int, e
 	}
 
 	end := time.Now().UTC()
-	timeRange := query.TimeRange
-	if timeRange <= 0 {
-		timeRange = time.Hour
+	window := query.Window
+	if window <= 0 {
+		window = 24 * time.Hour
 	}
-	start := end.Add(-timeRange)
+	start := end.Add(-window)
 	viewName := "v_api_gpu_metrics"
 	useOrgView := query.Org != ""
 	if useOrgView {
@@ -298,11 +298,11 @@ func (s *ClickhouseStore) NetworkDemand(query *models.NetworkDemandQuery) ([]*mo
 	}
 
 	end := time.Now().UTC()
-	interval := query.Interval
-	if interval <= 0 {
-		interval = 15 * time.Minute
+	window := query.Window
+	if window <= 0 {
+		window = 3 * time.Hour
 	}
-	start := end.Add(-interval * 12)
+	start := end.Add(-window)
 	viewName := "v_api_network_demand"
 	orgSelect := "CAST(NULL AS Nullable(String)) AS org"
 	useOrgView := query.Org != ""
@@ -408,11 +408,11 @@ func (s *ClickhouseStore) NetworkDemandCount(query *models.NetworkDemandQuery) (
 	}
 
 	end := time.Now().UTC()
-	interval := query.Interval
-	if interval <= 0 {
-		interval = 15 * time.Minute
+	window := query.Window
+	if window <= 0 {
+		window = 3 * time.Hour
 	}
-	start := end.Add(-interval * 12)
+	start := end.Add(-window)
 	viewName := "v_api_network_demand"
 	useOrgView := query.Org != ""
 	if useOrgView {
@@ -461,11 +461,11 @@ func (s *ClickhouseStore) SLACompliance(query *models.SLAComplianceQuery) ([]*mo
 	}
 
 	end := time.Now().UTC()
-	period := query.Period
-	if period <= 0 {
-		period = 24 * time.Hour
+	window := query.Window
+	if window <= 0 {
+		window = 24 * time.Hour
 	}
-	start := end.Add(-period)
+	start := end.Add(-window)
 	viewName := "v_api_sla_compliance"
 	orgSelect := "CAST(NULL AS Nullable(String)) AS org"
 	useOrgView := query.Org != ""
@@ -578,11 +578,11 @@ func (s *ClickhouseStore) SLAComplianceCount(query *models.SLAComplianceQuery) (
 	}
 
 	end := time.Now().UTC()
-	period := query.Period
-	if period <= 0 {
-		period = 24 * time.Hour
+	window := query.Window
+	if window <= 0 {
+		window = 24 * time.Hour
 	}
-	start := end.Add(-period)
+	start := end.Add(-window)
 	viewName := "v_api_sla_compliance"
 	useOrgView := query.Org != ""
 	if useOrgView {
