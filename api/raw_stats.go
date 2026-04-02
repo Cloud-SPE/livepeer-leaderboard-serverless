@@ -14,6 +14,9 @@ import (
 // RawStatsHandler handles a request for raw leaderboard stats
 // orchestrator parameter is required
 func RawStatsHandler(w http.ResponseWriter, r *http.Request) {
+	if !requirePostgresEnv(w) {
+		return
+	}
 	if err := db.CacheDB(); err != nil {
 		common.HandleInternalError(w, err)
 		return

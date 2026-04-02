@@ -13,6 +13,9 @@ import (
 
 // AggregatedStatsHandler handles an aggregated leaderboard stats request
 func AggregatedStatsHandler(w http.ResponseWriter, r *http.Request) {
+	if !requirePostgresEnv(w) {
+		return
+	}
 	if err := db.CacheDB(); err != nil {
 		common.HandleInternalError(w, err)
 		return
