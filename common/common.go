@@ -1,6 +1,7 @@
 package common
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -17,7 +18,14 @@ func HandleBadRequest(w http.ResponseWriter, err error) {
 
 func RespondWithError(w http.ResponseWriter, err error, code int) {
 	Logger.Warn("An error occured while handling the user request: %v", err.Error())
-	http.Error(w, fmt.Sprintf("{\"error\":\"%s\"}", err.Error()), code)
+	responseBody, marshalErr := json.Marshal(map[string]string{"error": err.Error()})
+	if marshalErr != nil {
+		http.Error(w, fmt.Sprintf("{\"error\":\"%s\"}", http.StatusText(code)), code)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	_, _ = w.Write(responseBody)
 }
 
 // EnvOrDefault returns the value of the environment variable if set, otherwise returns the default value.

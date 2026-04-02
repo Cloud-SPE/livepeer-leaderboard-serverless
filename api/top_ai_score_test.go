@@ -75,6 +75,34 @@ func TestTopAIScoreHandler(t *testing.T) {
 	runTopAIScoreTests(t, tests)
 }
 
+// Regression test: passing no orchestrator param caused a nil pointer dereference.
+// BestAIRegion returns a real orchestrator address, but the score lookup was keyed
+// on the empty query param instead of topStatsForOrch.Orchestrator.
+func TestTopAIScoreHandler_NoOrchestratorParam(t *testing.T) {
+	testutils.NewDB(t)
+
+	aiStat := testutils.GetBestAIStats()
+	if err := db.Store.InsertStats(&aiStat); err != nil {
+		t.Fatalf("failed to insert test stats: %v", err)
+	}
+
+	req, err := http.NewRequest("GET", "/api/top_ai_score", bytes.NewBuffer(nil))
+	if err != nil {
+		t.Fatalf("failed to create request: %v", err)
+	}
+
+	rr := httptest.NewRecorder()
+	// Must not panic.
+	http.HandlerFunc(TopAiScoreHandler).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d — body: %s", rr.Code, rr.Body.String())
+	}
+	if rr.Body.String() == "" || rr.Body.String() == "{}" {
+		t.Errorf("expected a score payload, got %q", rr.Body.String())
+	}
+}
+
 func runTopAIScoreTests(t *testing.T, tests []struct {
 	name                    string
 	orchToTest              string

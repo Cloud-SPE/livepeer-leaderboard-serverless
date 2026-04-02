@@ -50,11 +50,22 @@ func getCacheTimeout(envVar string, defaultValue int) time.Duration {
 
 func (c *MemCache) InvalidateRegionsCache() {
 	common.Logger.Debug("Invalidating regions cache")
-	c.invalidateCacheResult(c.regions)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.regions = nil
+	c.regionsLastUpdate = time.Time{}
+	common.Logger.Debug("Invalidated regions cache")
 }
 
 func (c *MemCache) GetRegions() CacheResult {
-	return c.getCacheResult(c.regions, c.regionsLastUpdate, c.regionsCacheTimeout)
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return CacheResult{
+		Results:      c.shallowCopy(c.regions),
+		LastUpdate:   c.regionsLastUpdate,
+		CacheHit:     c.regions != nil,
+		CacheExpired: c.isCacheExpired(c.regions, c.regionsLastUpdate, c.regionsCacheTimeout),
+	}
 }
 
 func (c *MemCache) UpdateRegions(newRegions []*models.Region) {
@@ -64,11 +75,22 @@ func (c *MemCache) UpdateRegions(newRegions []*models.Region) {
 
 func (c *MemCache) InvalidatePipelinesCache() {
 	common.Logger.Debug("Invalidating pipelines cache")
-	c.invalidateCacheResult(c.pipelines)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.pipelines = nil
+	c.pipelinesLastUpdate = time.Time{}
+	common.Logger.Debug("Invalidated pipelines cache")
 }
 
 func (c *MemCache) GetPipelines() CacheResult {
-	return c.getCacheResult(c.pipelines, c.pipelinesLastUpdate, c.pipelinesCacheTimeout)
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return CacheResult{
+		Results:      c.shallowCopy(c.pipelines),
+		LastUpdate:   c.pipelinesLastUpdate,
+		CacheHit:     c.pipelines != nil,
+		CacheExpired: c.isCacheExpired(c.pipelines, c.pipelinesLastUpdate, c.pipelinesCacheTimeout),
+	}
 }
 
 func (c *MemCache) UpdatePipelines(newPipelines []*models.Pipeline) {
@@ -77,37 +99,6 @@ func (c *MemCache) UpdatePipelines(newPipelines []*models.Pipeline) {
 }
 
 /** Utility functions **/
-
-func (c *MemCache) invalidateCacheResult(data interface{}) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	zeroTime := time.Time{}
-	switch v := data.(type) {
-	case []*models.Region:
-		c.regions = nil
-		c.regionsLastUpdate = zeroTime
-		common.Logger.Debug("Invalidated regions cache")
-	case []*models.Pipeline:
-		c.pipelines = nil
-		c.pipelinesLastUpdate = zeroTime
-		common.Logger.Debug("Invalidated pipelines cache")
-	default:
-		common.Logger.Warn("unsupported cache type: %T", v)
-	}
-}
-
-func (c *MemCache) getCacheResult(data interface{}, lastUpdate time.Time, timeout time.Duration) CacheResult {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	common.Logger.Debug("Getting cache result for data: %v, lastUpdate: %v, timeout: %v", data, lastUpdate, timeout)
-	return CacheResult{
-		// we give the caller a copy of the data in the cache so it can't modify the cache and is unaffected by invalidation
-		Results:      c.shallowCopy(data),
-		LastUpdate:   lastUpdate,
-		CacheHit:     data != nil,
-		CacheExpired: c.isCacheExpired(data, lastUpdate, timeout),
-	}
-}
 
 func (c *MemCache) updateCache(data interface{}, lastUpdate *time.Time, newData interface{}) {
 	c.mu.Lock()
@@ -132,8 +123,13 @@ func (c *MemCache) isCacheExpired(data interface{}, timeLastUpdated time.Time, t
 	return timeLastUpdated.IsZero() || time.Since(timeLastUpdated) > timeout
 }
 
-// shallowCopy returns a shallow copy of the original object
+// shallowCopy returns a shallow copy of the original object.
+// Returns nil for nil slices so that CacheResult.Results is nil (not a typed nil interface).
 // if structs get more complex, we may need to implement a deep copy
 func (c *MemCache) shallowCopy(original interface{}) interface{} {
-	return reflect.ValueOf(original).Interface()
+	v := reflect.ValueOf(original)
+	if !v.IsValid() || (v.Kind() == reflect.Slice && v.IsNil()) {
+		return nil
+	}
+	return v.Interface()
 }

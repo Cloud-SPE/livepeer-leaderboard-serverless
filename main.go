@@ -11,6 +11,7 @@ import (
 // so any logic here should only reflect what is needed for local development
 func main() {
 
+	http.HandleFunc("/api/health", handler.HealthHandler)
 	http.HandleFunc("/api/raw_stats", handler.RawStatsHandler)
 	http.HandleFunc("/api/aggregated_stats", handler.AggregatedStatsHandler)
 	http.HandleFunc("/api/top_ai_score", handler.TopAiScoreHandler)
