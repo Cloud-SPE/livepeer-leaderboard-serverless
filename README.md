@@ -18,8 +18,7 @@ The serverless functions can be deployed using `vercel-cli` or self-hosted.
 
 ### Production API Consumers 
 * Livepeer Inc - https://explorer.livepeer.org (Performance Leaderboard)
-* Interptr- https://interptr-latest-test-streams.vercel.app (Transcoding Test Stream UI)
-* Livepeer.Cloud SPE - https://inspector.livepeer.cloud/ (AI and Transcoding Test Job UI) 
+* Cloud SPE - https://tools.livepeer.cloud/ (AI and Transcoding Test Job UI) 
 
 
 ## Required Software
@@ -29,13 +28,13 @@ This software can run on many operating systems.  Make sure you have the below s
 * **Git** 
   * [Install Guide](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
 * **Go** 1.23.1 or newer
-  * https://go.dev/doc/install
+  * [Install Go](https://go.dev/doc/install)
 * **Postgres**
   * A postgres database is required. 
   * The database must be running prior to running the API server
   * see section *"Local Postgres local DB (optional)"*
 * Vercel CLI
-  * https://vercel.com/docs/cli
+  * [Vercel CLI docs](https://vercel.com/docs/cli)
   * Optional, unless you deploy to Vercel
 * Docker
   * Optional, unless you run a local Postgres DB
@@ -57,7 +56,7 @@ When the build completes, check for the binary file:
 `leaderboard-serverless`
 
 ### Local Postgres local DB (optional)
-The `<repo-folder>/docker-compose.yml` file will allow you to spin up Postgres with a database 
+The [`docker-compose.yml`](docker-compose.yml) file will allow you to spin up Postgres with a database 
 called `leaderboad` and user named `leaderboard` and password `leaderboard` **DO NOT USE THESE VALUES FOR PRODUCTION!**
 
 To run a local DB, first create an external volume.  This will ensure data is persisted between executions of this service.
@@ -125,7 +124,9 @@ You will see similar JSON output:
 }
 ```
 
-### Troubleshooting Tip
+### Troubleshooting
+
+#### Postgres connection errors
 
 If your `POSTGRES` environment variable is misconfigured, you may see an error like this:
 
@@ -134,306 +135,57 @@ failed to connect to `host=localhost user=leaderboard database=leaderboard`: dia
 ```
 
 Make sure you can connect to the database url defined with proper user and password credentials.
+```
+GET /api/health
+```
 
+Example response when Postgres is healthy:
+
+```json
+{ "postgres": { "ok": true } }
+```
 ### Running The Unit Tests
 
 Tests can be run with the following command in the project root:
 
 ```
-go build && go test -p 1-v ./...
+go build && go test -p 1 -v ./...
 ```
 
-Since we use an emebedded database for the entire test run between packages, test packages must be run one at a time (-p 1 flag). 
+Since we use an embedded database for the entire test run between packages, test packages must be run one at a time (`-p 1` flag). Use the `-race` flag to detect data races in concurrent tests.
 
-See here for more: https://github.com/fergusstrange/embedded-postgres/issues/115
+See [embedded-postgres issue #115](https://github.com/fergusstrange/embedded-postgres/issues/115) for more details.
+
+### Smoke-testing the API
+
+[`scripts/test_endpoints.sh`](scripts/test_endpoints.sh) runs curl requests against every endpoint and parameter combination, printing the HTTP status and response body for each.
+
+**Prerequisites:** `curl` (required), `jq` (optional, for pretty-printed JSON output), `openssl` (required only for POST tests).
+
+```bash
+# Against the local server (default: http://localhost:8080)
+./scripts/test_endpoints.sh
+
+# Against a specific base URL
+./scripts/test_endpoints.sh https://leaderboard-serverless.vercel.app
+
+# Including POST /api/post_stats tests (opt-in, requires SECRET)
+ENABLE_POST_TESTS=true SECRET=your_secret_here ./scripts/test_endpoints.sh http://localhost:8080
+```
+
+POST tests are **disabled by default** (`ENABLE_POST_TESTS=false`) to prevent accidental writes to a live server. Set `ENABLE_POST_TESTS=true` together with `SECRET` to opt in. The script continues past non-2xx HTTP responses so all endpoints are exercised in a single run.
 
 ## Production
 
 Livepeer Inc hosts a version of this API to support the Livepeer Explorer Performance Leaderboard.
 
 ### Livepeer Inc's API
-- Production API: https://leaderboard-serverless.vercel.app/api/
-- Staging API: https://staging-leaderboard-serverless.vercel.app/api/
+- Production API: [leaderboard-serverless.vercel.app/api/](https://leaderboard-serverless.vercel.app/api/)
+- Staging API: [staging-leaderboard-serverless.vercel.app/api/](https://staging-leaderboard-serverless.vercel.app/api/)
 
 ## API Reference
 
-All APIs start with `/api/`
-
-#### `GET /api/aggregated_stats?orchestrator=<orchAddr>&region=<region_code>&since=<timestamp>&until=<timestamp>`
-
-| Parameter         | Description                                                                                                                                                           |
-|-------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `orchestrator`     | The orchestrator to get aggregated stats for. If `orchestrator` is not provided, the response will include aggregated scores for all orchestrators.                    |
-| `region`          | The region to get aggregated stats for. If `region` is not provided, all regions will be returned in the response. Region must be a registered region in the database.  For example `"FRA", "MDW", "SIN"`.         |
-| `since`           | The timestamp to evaluate the query from. If neither `since` nor `until` are provided, it will return the results starting from the time period specified by the environment variable `START_TIME_WINDOW` or its default.                                |
-| `until`           | If `until` is provided but `since` is not, it will return all results before the `until` timestamp.                                                                     |
-
-
-#### Transcoding Response 
-
-```
-{
-   "<orchAddr>": {
-    "MDW": {
-      "total_score": 5.5,
-      "latency_score": 6.01,
-      "success_rate": 91.5
-    },
-    "FRA": {
-    	"total_score": 2.5,
-      "latency_score": 2.5,
-      "success_rate": 100
-    },
-    "SIN": {
-    	"total_score": 6.6,
-      "latency_score": 7.10
-			"success_rate": 93
-    }
-  },
-   "<orchAddr2>": {
-  		...
-  },
-	...
-}
-```
-
-#### AI Request 
-
-This is similar to the above `aggregated_stats` requests with the added parameters documented below.
-
-#### `GET /api/aggregated_stats?orchestrator=<orchAddr>&region=<region_code>&since=<timestamp>&until=<timestamp>&model=<model>&pipeline=<pipeline>`
-
-| Parameter         | Description                                                                                                                          |
-|-------------------|--------------------------------------------------------------------------------------------------------------------------------------|
-| `model`           | The model to check stats for. Model is a required field. If `model` is not provided, you will get an HTTP status code 400 (Bad Request). |
-| `pipeline`        | The pipeline to check stats for. Pipeline is a required field. If `pipeline` is not provided, you will get an HTTP status code 400 (Bad Request). |
-
-
-#### AI Response 
-
-```
-{
-  "0x10742714f33f3d804e3fa489618b5c3ca12a6df7": {
-    "FRA": {
-      "success_rate": 1,
-      "round_trip_score": 0.742521971754293,
-      "score": 0.909882690114002
-    },
-    "LAX": {
-      "success_rate": 1,
-      "round_trip_score": 0.844420265972075,
-      "score": 0.945547093090226
-    },
-    "MDW": {
-      "success_rate": 1,
-      "round_trip_score": 0.797933017387645,
-      "score": 0.929276556085676
-    }
-  }
-}
-```
-
-#### `GET /api/raw_stats?orchestrator=<orchAddr>&region=<region_code>&since=<timestamp>`
-
-| Parameter         | Description                                                                                                                           |
-|-------------------|---------------------------------------------------------------------------------------------------------------------------------------|
-| `orchestrator`     | The orchestrator's address to check raw stats for. If no parameter for `orchestrator` is provided, the request will return `400 Bad Request`. |
-| `region`          | The region to check stats for. If `region` is not provided, all regions will be returned in the response.                               |
-| `since`           | The timestamp to evaluate the query from. If `since` is not provided, it will return the results starting from time period specified by the environment variable `START_TIME_WINDOW` or its default.                 |
-
-#### Transcoding Response
-
-For each region return an array of the metrics from the 'metrics gathering' section as a "raw dump"
-
-```
-{
- "FRA": [
-    {
-	    "timestamp": number,
-        "segments_sent": number,
-        "segments_received": number,
-        "success_rate": number,
-        "seg_duration": number,
-        "upload_time": number,
-        "download_time": number,
-        "transcode_time": number,
-        "round_trip_time": number,
-        "errors": Array
-      }
-   ],
-   "MDW": [...],
-   "SIN": [...]
-}
-```
-
-#### AI Request 
-
-This is similar to the above `raw_stats` requests with the added parameters documented below.
-
-#### `GET /api/raw_stats?orchestrator=<orchAddr>&region=<region_code>&since=<timestamp>&until=<timestamp>&model=<model>&pipeline=<pipeline>`
-
-| Parameter         | Description                                                                                                                               |
-|-------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
-| `model`           | The model to check stats for. Model is an optional field.                                                                                 |
-| `pipeline`        | The pipeline to check stats for. Pipeline is a required field. If pipeline is not provided, you will get Transcoding data (see raw_stats for Transcoding). |
-
-#### AI Response 
-
-```
-{
-  "FRA": [
-    {
-      "region": "FRA",
-      "orchestrator": "0x10742714f33f3d804e3fa489618b5c3ca12a6df7",
-      "success_rate": 1,
-      "round_trip_time": 7.236450406,
-      "errors": [],
-      "timestamp": 1726864722,
-      "model": "stabilityai/stable-video-diffusion-img2vid-xt-1-1",
-      "model_is_warm": true,
-      "pipeline": "Image to video",
-      "input_parameters": "{\"fps\":8,\"height\":256,\"model_id\":\"stabilityai/stable-video-diffusion-img2vid-xt-1-1\",\"motion_bucket_id\":127,\"noise_aug_strength\":0.065,\"width\":256}",
-      "response_payload": "{\"images\":[{\"nsfw\":false,\"seed\":1384909895,\"url\":\"/stream/112b6ad2/772ed708.mp4\"}]}\n"
-    },
-    {
-      "region": "FRA",
-      "orchestrator": "0x10742714f33f3d804e3fa489618b5c3ca12a6df7",
-      "success_rate": 1,
-      "round_trip_time": 7.333097532,
-      "errors": [],
-      "timestamp": 1726857456,
-      "model": "stabilityai/stable-video-diffusion-img2vid-xt-1-1",
-      "model_is_warm": true,
-      "pipeline": "Image to video",
-      "input_parameters": "{\"fps\":8,\"height\":256,\"model_id\":\"stabilityai/stable-video-diffusion-img2vid-xt-1-1\",\"motion_bucket_id\":127,\"noise_aug_strength\":0.065,\"width\":256}",
-      "response_payload": "{\"images\":[{\"nsfw\":false,\"seed\":2533618378,\"url\":\"/stream/774f96b9/105469a0.mp4\"}]}\n"
-    }
-  ],
-  "LAX": [
-    {
-      "region": "LAX",
-      "orchestrator": "0x10742714f33f3d804e3fa489618b5c3ca12a6df7",
-      "success_rate": 1,
-      "round_trip_time": 4.110541139,
-      "errors": [],
-      "timestamp": 1726866030,
-      "model": "stabilityai/stable-video-diffusion-img2vid-xt-1-1",
-      "model_is_warm": true,
-      "pipeline": "Image to video",
-      "input_parameters": "{\"fps\":8,\"height\":256,\"model_id\":\"stabilityai/stable-video-diffusion-img2vid-xt-1-1\",\"motion_bucket_id\":127,\"noise_aug_strength\":0.065,\"width\":256}",
-      "response_payload": "{\"images\":[{\"nsfw\":false,\"seed\":689122349,\"url\":\"/stream/bafdeb1f/5f1f1fee.mp4\"}]}\n"
-    },
-  ]
-}
-```
-
-
-#### POST `/api/post_stats`
-
-This accepts a JSON encododed Stats object that maps to the `Stats` struct below.
-
-```
-// Stats are the raw stats per test stream
-type Stats struct {
-	Region        string  `json:"region" bson:"-"`
-	Orchestrator  string  `json:"orchestrator" bson:"orchestrator"`
-	SuccessRate   float64 `json:"success_rate" bson:"success_rate"`
-	RoundTripTime float64 `json:"round_trip_time" bson:"round_trip_time"`
-	Errors        []Error `json:"errors" bson:"errors"`
-	Timestamp     int64   `json:"timestamp" bson:"timestamp"`
-
-	// Transcoding stats fields
-	SegDuration      float64 `json:"seg_duration,omitempty" bson:"seg_duration,omitempty"`
-	SegmentsSent     int     `json:"segments_sent,omitempty" bson:"segments_sent,omitempty"`
-	SegmentsReceived int     `json:"segments_received,omitempty" bson:"segments_received,omitempty"`
-	UploadTime       float64 `json:"upload_time,omitempty" bson:"upload_time,omitempty"`
-	DownloadTime     float64 `json:"download_time,omitempty" bson:"download_time,omitempty"`
-	TranscodeTime    float64 `json:"transcode_time,omitempty" bson:"transcode_time,omitempty"`
-
-	// AI stats fields
-	Model           string `json:"model,omitempty" bson:"model,omitempty"`
-	ModelIsWarm     bool   `json:"model_is_warm,omitempty" bson:"model_is_warm,omitempty"`
-	Pipeline        string `json:"pipeline,omitempty" bson:"pipeline,omitempty"`
-	InputParameters string `json:"input_parameters,omitempty" bson:"input_parameters,omitempty"`
-	ResponsePayload string `json:"response_payload,omitempty" bson:"response_payload,omitempty"`
-}
-```
-
-#### `GET /api/pipelines?region=<region_code>&since=<timestamp>&until=<timestamp>`
-
-| Parameter         | Description                                                                                                                                                      |
-|-------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `region`          | The region to check stats for. If `region` is not provided, all pipelines will be returned in the response.                                                       |
-| `since`           | The timestamp to evaluate the query from. If neither `since` nor `until` are provided, it will return the results starting from the time period specified by the environment variable `START_TIME_WINDOW` or its default.                           |
-| `until`           | If `until` is provided but `since` is not, it will return all results before the `until` timestamp.                                                                |
-
-
-This endpoint outputs the pipelines and models in JSON format.
-
-#### Response 
-```
-{
-  "pipelines": [
-    {
-      "id": "Audio to text",
-      "models": [
-        "openai/whisper-large-v3"
-      ],
-      "regions": [
-        "FRA",
-        "LAX",
-        "MDW"
-      ]
-    },
-    {
-      "id": "Image to image",
-      "models": [
-        "ByteDance/SDXL-Lightning",
-        "timbrooks/instruct-pix2pix"
-      ],
-      "regions": [
-        "FRA",
-        "LAX",
-        "MDW"
-      ]
-    }
-    ...
-  ]
-}
-```
-
-
-#### `GET /api/regions`
-
-This endpoint outputs the regions in JSON format.  It does not take any parameters.
-
-#### Response 
-```
-{
-  "regions": [
-    {
-      "id": "TOR",
-      "name": "Toronto",
-      "type": "transcoding"
-    },
-    {
-      "id": "HND",
-      "name": "Tokyo",
-      "type": "transcoding"
-    },
-    {
-      "id": "SYD",
-      "name": "Sydney",
-      "type": "transcoding"
-    },
-    {
-      "id": "STO",
-      "name": "Stockholm",
-      "type": "transcoding"
-    },
-  ]
-}
-```
+All API endpoint documentation has moved to [API Reference](docs/api-reference.md).
 
 ## Database
 
@@ -462,7 +214,7 @@ These scripts must follow the naming convention of <migration_number>_descriptiv
 ```
 This example defines the eighth migration for the datbaase with two migrations, one to upgrade the database and one to revert it.  When the application starts its connection to the database, it will run all upgrade (or up) migrations automatically.
 
-Database migrations are found in the assets/migrations folder.  These are embeded in the golang binary built from this project for ease of access regardless of where the application is deployed.  This also allows Vercel to use these migrations.  The migrations are loaded and processed by the [golang-migrate](https://github.com/golang-migrate/migrate) project.  Please read their documentation for more details.
+Database migrations are found in [`assets/migrations`](assets/migrations). These are embeded in the golang binary built from this project for ease of access regardless of where the application is deployed.  This also allows Vercel to use these migrations.  The migrations are loaded and processed by the [golang-migrate](https://github.com/golang-migrate/migrate) project.  Please read their documentation for more details.
 
 ### Upgrading the database
 

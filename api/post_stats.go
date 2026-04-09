@@ -15,6 +15,9 @@ import (
 
 // PostStatsHandler function Using AWS Lambda Proxy Request
 func PostStatsHandler(w http.ResponseWriter, r *http.Request) {
+	if !requirePostgresEnv(w) {
+		return
+	}
 	if err := db.CacheDB(); err != nil {
 		common.HandleInternalError(w, err)
 		return

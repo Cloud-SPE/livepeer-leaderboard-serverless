@@ -12,6 +12,9 @@ import (
 
 // PipelinesHandler handles a request for Pipeline/Model Reference Data
 func PipelinesHandler(w http.ResponseWriter, r *http.Request) {
+	if !requirePostgresEnv(w) {
+		return
+	}
 	if err := db.CacheDB(); err != nil {
 		common.HandleInternalError(w, err)
 		return

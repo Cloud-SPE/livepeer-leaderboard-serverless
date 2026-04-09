@@ -12,6 +12,9 @@ import (
 
 // RegionsHandler handles a request for Regions Reference Data
 func RegionsHandler(w http.ResponseWriter, r *http.Request) {
+	if !requirePostgresEnv(w) {
+		return
+	}
 	if err := db.CacheDB(); err != nil {
 		common.HandleInternalError(w, err)
 		return
